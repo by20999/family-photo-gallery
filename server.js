@@ -6,10 +6,13 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 创建上传目录
-const uploadDir = path.join(__dirname, 'uploads');
+// 创建上传目录 - 支持 Railway Volume
+const uploadDir = process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? process.env.RAILWAY_VOLUME_MOUNT_PATH
+    : path.join(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+    fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 // 配置文件上传
