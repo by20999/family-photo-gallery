@@ -231,7 +231,7 @@ header h1 {
 /* ===== 相册网格 ===== */
 .gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 20px;
     padding: 20px 0;
 }
@@ -341,7 +341,7 @@ header h1 {
 
 .lightbox img {
     width: 100%;
-    max-height: 60vh;
+    max-height: 75vh;
     object-fit: contain;
     border-radius: 10px;
     animation: zoomIn 0.4s ease;
@@ -351,11 +351,15 @@ header h1 {
 
 /* ===== 滤镜工具栏 ===== */
 .filter-bar {
-    display: flex;
+    display: none;
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 12px;
     justify-content: center;
+}
+
+.filter-bar.visible {
+    display: flex;
 }
 
 .filter-btn {
@@ -383,10 +387,43 @@ header h1 {
 
 /* ===== 图片编辑栏 ===== */
 .edit-bar {
+    display: none;
     background: rgba(255,255,255,0.08);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 16px;
+}
+
+.edit-bar.visible {
+    display: block;
+}
+
+/* 编辑按钮 */
+.edit-toggle-btn {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border: 2px solid rgba(255,255,255,0.3);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.edit-toggle-btn:hover {
+    background: rgba(255,255,255,0.28);
+    border-color: rgba(255,255,255,0.6);
+}
+
+.edit-toggle-btn.active {
+    background: white;
+    color: #333;
+    border-color: white;
 }
 
 .edit-bar-title {
@@ -662,6 +699,140 @@ header h1 {
     text-decoration: underline;
 }
 
+/* ===== 昵称弹窗 ===== */
+.nickname-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.nickname-modal.open {
+    display: flex;
+}
+
+.nickname-box {
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 32px 28px 24px;
+    width: 320px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    animation: zoomIn 0.25s ease;
+    text-align: center;
+}
+
+.nickname-title {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.nickname-desc {
+    font-size: 0.88em;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.nickname-box input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 1em;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+.nickname-box input:focus {
+    border-color: var(--accent);
+}
+
+.nickname-error {
+    min-height: 20px;
+    font-size: 0.82em;
+    color: #ff4757;
+    margin: 6px 0 12px;
+}
+
+.nickname-confirm {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.nickname-confirm:hover {
+    background: var(--accent-hover);
+}
+
+/* ===== 右上角用户徽章 ===== */
+.user-badge {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.25);
+    backdrop-filter: blur(10px);
+    border-radius: 30px;
+    padding: 6px 12px 6px 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    cursor: default;
+}
+
+.user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 0.85em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-name {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: white;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 2px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.user-edit-btn:hover {
+    opacity: 1;
+}
+
 /* ===== 关闭按钮 ===== */
 .close {
     position: fixed;
@@ -813,7 +984,7 @@ header h1 {
     }
 
     .gallery {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        grid-template-columns: repeat(2, 1fr);
         gap: 12px;
     }
 

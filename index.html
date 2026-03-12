@@ -62,6 +62,9 @@
                 <div class="filter-overlay" id="filterOverlay"></div>
             </div>
 
+            <!-- 编辑切换按钮 -->
+            <button class="edit-toggle-btn" id="editToggleBtn">✏️ 编辑图片</button>
+
             <!-- 滤镜工具栏 -->
             <div class="filter-bar" id="filterBar">
                 <button class="filter-btn active" data-filter="none">原图</button>
@@ -125,6 +128,24 @@
                 <button id="pwdConfirmBtn" class="pwd-confirm">确认删除</button>
             </div>
         </div>
+    </div>
+
+    <!-- 昵称设置弹窗 -->
+    <div class="nickname-modal" id="nicknameModal">
+        <div class="nickname-box">
+            <div class="nickname-title">👋 欢迎来到相册</div>
+            <div class="nickname-desc">请设置你的昵称，方便大家认识你</div>
+            <input type="text" id="nicknameInput" placeholder="输入昵称（2-10个字）" maxlength="10" autocomplete="off">
+            <div class="nickname-error" id="nicknameError"></div>
+            <button id="nicknameConfirmBtn" class="nickname-confirm">进入相册</button>
+        </div>
+    </div>
+
+    <!-- 右上角用户信息 -->
+    <div class="user-badge" id="userBadge">
+        <span class="user-avatar" id="userAvatar"></span>
+        <span class="user-name" id="userName"></span>
+        <button class="user-edit-btn" id="userEditBtn" title="修改昵称">✏️</button>
     </div>
 
     <script src="script.js"></script>

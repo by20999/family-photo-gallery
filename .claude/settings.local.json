@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(find d:code网站项目 -name photo-data.json -o -name *data*.json)",
+      "Bash(grep -E \"\\\\.\\(json|md\\)$\")"
     ]
   }
 }

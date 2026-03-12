@@ -6,6 +6,74 @@ let galleryObserver = null;
 let currentFilter = 'none';
 let currentEdit = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
 
+// ===== 昵称系统 =====
+const NICKNAME_KEY = 'album_nickname';
+
+function getNickname() {
+    return localStorage.getItem(NICKNAME_KEY) || '';
+}
+
+function setNickname(name) {
+    localStorage.setItem(NICKNAME_KEY, name);
+}
+
+function getAvatarChar(name) {
+    return name ? name.charAt(0).toUpperCase() : '?';
+}
+
+function updateUserBadge(name) {
+    document.getElementById('userAvatar').textContent = getAvatarChar(name);
+    document.getElementById('userName').textContent = name;
+}
+
+function openNicknameModal(required = false) {
+    const modal = document.getElementById('nicknameModal');
+    const input = document.getElementById('nicknameInput');
+    input.value = getNickname();
+    document.getElementById('nicknameError').textContent = '';
+    modal.classList.add('open');
+    // 如果是必填（首次），不允许点背景关闭
+    modal._required = required;
+    setTimeout(() => input.focus(), 100);
+}
+
+function closeNicknameModal() {
+    document.getElementById('nicknameModal').classList.remove('open');
+}
+
+document.getElementById('nicknameConfirmBtn').addEventListener('click', () => {
+    const input = document.getElementById('nicknameInput');
+    const name = input.value.trim();
+    if (name.length < 2) {
+        document.getElementById('nicknameError').textContent = '昵称至少2个字';
+        return;
+    }
+    setNickname(name);
+    updateUserBadge(name);
+    closeNicknameModal();
+});
+
+document.getElementById('nicknameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('nicknameConfirmBtn').click();
+});
+
+document.getElementById('nicknameModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('nicknameModal') && !e.target._required) {
+        closeNicknameModal();
+    }
+});
+
+document.getElementById('userEditBtn').addEventListener('click', () => openNicknameModal(false));
+
+function initNickname() {
+    const name = getNickname();
+    if (!name) {
+        openNicknameModal(true);
+    } else {
+        updateUserBadge(name);
+    }
+}
+
 const fileInput = document.getElementById('fileInput');
 const gallery = document.getElementById('gallery');
 const lightbox = document.getElementById('lightbox');
@@ -194,7 +262,7 @@ function renderGallery() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
-                <span>${photo.likes || 0}</span>
+                <span>${(reactions['👍'] || 0) + (photo.likes || 0)}</span>
             </div>
             <div class="comments-count">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -238,6 +306,12 @@ async function openLightbox(index) {
     currentEdit = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
     resetEditSliders();
     resetFilterBtns();
+
+    // 关闭编辑面板
+    document.getElementById('filterBar').classList.remove('visible');
+    document.getElementById('editBar').classList.remove('visible');
+    document.getElementById('editToggleBtn').classList.remove('active');
+    document.getElementById('editToggleBtn').textContent = '✏️ 编辑图片';
 
     commentsList.innerHTML = '<p style="color: #999; text-align: center;">评论加载中...</p>';
     lightbox.classList.add('active');
@@ -413,13 +487,15 @@ function renderComments(comments) {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
+        const isOwn = comment.author === getNickname();
+
         commentItem.innerHTML = `
             <div class="comment-header">
                 <span class="comment-author">${comment.author}</span>
                 <span class="comment-time">${timeStr}</span>
             </div>
             <div class="comment-text">${comment.text}</div>
-            <button class="comment-delete" data-comment-id="${comment.id}">删除</button>
+            ${isOwn ? `<button class="comment-delete" data-comment-id="${comment.id}">删除</button>` : ''}
         `;
         commentsList.appendChild(commentItem);
     });
@@ -437,7 +513,7 @@ async function submitComment() {
     if (!text) { alert('请输入评论内容'); return; }
 
     const photo = photos[currentPhotoIndex];
-    const author = authorInput.value.trim() || '匿名';
+    const author = getNickname() || authorInput.value.trim() || '匿名';
 
     try {
         const response = await fetch(`/api/photos/${photo.id}/comment`, {
@@ -547,6 +623,18 @@ closeBtn.addEventListener('click', closeLightbox);
 deleteBtn.addEventListener('click', deletePhoto);
 submitCommentBtn.addEventListener('click', submitComment);
 
+// 编辑按钮切换
+document.getElementById('editToggleBtn').addEventListener('click', () => {
+    const filterBar = document.getElementById('filterBar');
+    const editBar = document.getElementById('editBar');
+    const btn = document.getElementById('editToggleBtn');
+    const isOpen = filterBar.classList.contains('visible');
+    filterBar.classList.toggle('visible', !isOpen);
+    editBar.classList.toggle('visible', !isOpen);
+    btn.classList.toggle('active', !isOpen);
+    btn.textContent = isOpen ? '✏️ 编辑图片' : '✖ 关闭编辑';
+});
+
 commentInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.ctrlKey) submitComment();
 });
@@ -566,4 +654,5 @@ document.addEventListener('keydown', (e) => {
 
 // ===== 初始化 =====
 initTheme();
+initNickname();
 loadPhotos();
