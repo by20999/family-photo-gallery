@@ -36,18 +36,51 @@
 
     <div class="container">
         <header>
-            <h1>✨ 我的相册</h1>
-            <p class="subtitle">记录美好瞬间</p>
+            <div class="header-emoji-row">
+                <span class="header-emoji float-1">🌸</span>
+                <span class="header-emoji float-2">📷</span>
+                <span class="header-emoji float-3">✨</span>
+                <span class="header-emoji float-4">🎞️</span>
+                <span class="header-emoji float-5">🌟</span>
+            </div>
+            <h1>我的相册</h1>
+            <p class="subtitle" id="dynamicSubtitle">记录美好瞬间</p>
+            <div class="header-stats" id="headerStats"></div>
         </header>
 
         <div class="upload-section">
-            <label for="fileInput" class="upload-btn">
+            <label for="fileInput" class="upload-btn" id="uploadBtn">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                 </svg>
                 上传图片
             </label>
+            <button class="batch-delete-toggle-btn" id="batchDeleteToggleBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                多选
+            </button>
             <input type="file" id="fileInput" accept="image/*" multiple hidden>
+        </div>
+
+        <!-- 上传进度条 -->
+        <div class="upload-progress-wrap" id="uploadProgressWrap">
+            <div class="upload-progress-bar" id="uploadProgressBar"></div>
+            <div class="upload-progress-text" id="uploadProgressText">准备上传...</div>
+        </div>
+
+        <!-- 批量删除操作栏 -->
+        <div class="batch-bar" id="batchBar">
+            <span class="batch-count" id="batchCount">已选 0 张</span>
+            <button class="batch-select-all-btn" id="batchSelectAllBtn">全选</button>
+            <button class="batch-delete-btn" id="batchDeleteBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                删除所选
+            </button>
+            <button class="batch-cancel-btn" id="batchCancelBtn">取消</button>
         </div>
 
         <div class="gallery" id="gallery"></div>
@@ -55,6 +88,8 @@
 
     <div class="lightbox" id="lightbox">
         <span class="close">&times;</span>
+        <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&#8249;</button>
+        <button class="lightbox-nav lightbox-next" id="lightboxNext">&#8250;</button>
         <div class="lightbox-content">
             <div class="lightbox-img-wrap">
                 <img src="" alt="" id="lightboxImg">

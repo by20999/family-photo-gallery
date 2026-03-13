@@ -64,17 +64,52 @@ header {
     color: var(--header-color);
     margin-bottom: 40px;
     animation: fadeInDown 0.8s ease;
+    position: relative;
+}
+
+.header-emoji-row {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 10px;
+    height: 36px;
+}
+
+.header-emoji {
+    font-size: 1.6em;
+    display: inline-block;
+}
+
+.float-1 { animation: floatEmoji 3.2s ease-in-out infinite; }
+.float-2 { animation: floatEmoji 2.8s ease-in-out infinite 0.4s; }
+.float-3 { animation: floatEmoji 3.5s ease-in-out infinite 0.8s; }
+.float-4 { animation: floatEmoji 2.6s ease-in-out infinite 1.2s; }
+.float-5 { animation: floatEmoji 3.0s ease-in-out infinite 0.2s; }
+
+@keyframes floatEmoji {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
 }
 
 header h1 {
     font-size: 3em;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    letter-spacing: 2px;
 }
 
 .subtitle {
     font-size: 1.2em;
     opacity: 0.9;
+    min-height: 1.5em;
+    transition: opacity 0.4s ease;
+}
+
+.header-stats {
+    margin-top: 10px;
+    font-size: 0.9em;
+    opacity: 0.75;
+    letter-spacing: 1px;
 }
 
 /* ===== 主题控制面板 ===== */
@@ -199,8 +234,13 @@ header h1 {
 /* ===== 上传区域 ===== */
 .upload-section {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 16px;
     animation: fadeIn 1s ease 0.3s both;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .upload-btn {
@@ -226,6 +266,170 @@ header h1 {
 
 .upload-btn:active {
     transform: translateY(-1px);
+}
+
+.batch-delete-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: 2px solid rgba(255,255,255,0.5);
+    padding: 13px 22px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.batch-delete-toggle-btn:hover {
+    background: rgba(255,255,255,0.35);
+    transform: translateY(-2px);
+}
+
+.batch-delete-toggle-btn.active {
+    background: white;
+    color: #667eea;
+    border-color: white;
+}
+
+/* ===== 上传进度条 ===== */
+.upload-progress-wrap {
+    display: none;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50px;
+    height: 36px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-progress-wrap.visible {
+    display: block;
+}
+
+.upload-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255,255,255,0.7), white);
+    border-radius: 50px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.upload-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #667eea;
+    font-size: 0.9em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ===== 批量删除操作栏 ===== */
+.batch-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50px;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.batch-bar.visible {
+    display: flex;
+}
+
+.batch-count {
+    color: white;
+    font-weight: 600;
+    font-size: 0.95em;
+    min-width: 80px;
+}
+
+.batch-select-all-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: 1.5px solid rgba(255,255,255,0.5);
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.batch-select-all-btn:hover { background: rgba(255,255,255,0.35); }
+
+.batch-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ff4757;
+    color: white;
+    border: none;
+    padding: 7px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.batch-delete-btn:hover { background: #ff3838; transform: translateY(-1px); }
+.batch-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.batch-cancel-btn {
+    background: transparent;
+    color: rgba(255,255,255,0.8);
+    border: 1.5px solid rgba(255,255,255,0.4);
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.batch-cancel-btn:hover { background: rgba(255,255,255,0.15); }
+
+/* 批量选择时卡片的勾选样式 */
+.gallery.batch-mode .photo-card {
+    cursor: pointer;
+}
+
+.gallery.batch-mode .photo-card::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2.5px solid white;
+    background: rgba(0,0,0,0.3);
+    z-index: 2;
+    transition: all 0.2s;
+}
+
+.gallery.batch-mode .photo-card.selected::after {
+    background: #667eea;
+    border-color: white;
+    content: '✓';
+    color: white;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.gallery.batch-mode .photo-card.selected {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
 }
 
 /* ===== 相册网格 ===== */
@@ -254,10 +458,14 @@ header h1 {
 
 .photo-card img {
     width: 100%;
-    height: 300px;
+    aspect-ratio: 1 / 1;
+    height: auto;
     object-fit: cover;
+    object-position: center top;
     display: block;
     transition: transform 0.5s ease, opacity 0.4s ease;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 .photo-card img.lazy {
@@ -327,6 +535,45 @@ header h1 {
 .lightbox.active {
     display: block;
 }
+
+/* ===== 灯箱导航按钮 ===== */
+.lightbox-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.3);
+    color: white;
+    font-size: 2.2em;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+    line-height: 1;
+}
+
+.lightbox-nav:hover {
+    background: rgba(255,255,255,0.3);
+    border-color: rgba(255,255,255,0.7);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.lightbox-nav:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    transform: translateY(-50%);
+}
+
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
+
+
 
 .lightbox-content {
     max-width: 1000px;
@@ -973,7 +1220,6 @@ header h1 {
         width: calc(100% - 40px);
         margin: 0 20px;
     }
-}
 
     header h1 { font-size: 2em; }
     .subtitle { font-size: 1em; }
@@ -984,11 +1230,11 @@ header h1 {
     }
 
     .gallery {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
     }
 
-    .photo-card img { height: 200px; }
+    .photo-card img { aspect-ratio: 1 / 1; height: auto; }
 
     .lightbox-content {
         margin: 20px auto;

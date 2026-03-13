@@ -172,8 +172,8 @@ async function loadPhotoDetails(photoId) {
 // ===== 图片压缩 =====
 function compressImage(file) {
     return new Promise((resolve) => {
-        const maxSize = 1920;
-        const quality = 0.85;
+        const maxSize = 2560;
+        const quality = 0.92;
         const img = new Image();
         const url = URL.createObjectURL(file);
 
@@ -203,41 +203,98 @@ fileInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
     if (files.length === 0) return;
 
-    const uploadBtn = document.querySelector('.upload-btn');
-    uploadBtn.textContent = '压缩中...';
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressWrap = document.getElementById('uploadProgressWrap');
+    const progressBar = document.getElementById('uploadProgressBar');
+    const progressText = document.getElementById('uploadProgressText');
+
     uploadBtn.style.pointerEvents = 'none';
+    uploadBtn.style.opacity = '0.6';
+    progressWrap.classList.add('visible');
 
     try {
         const formData = new FormData();
-        for (const file of files) {
-            const compressed = await compressImage(file);
-            formData.append('photos', compressed, file.name);
+        for (let i = 0; i < files.length; i++) {
+            progressText.textContent = `压缩中 ${i + 1} / ${files.length}...`;
+            progressBar.style.width = `${((i + 0.5) / files.length) * 50}%`;
+            const compressed = await compressImage(files[i]);
+            formData.append('photos', compressed, files[i].name);
         }
-        uploadBtn.textContent = '上传中...';
-        const response = await fetch('/api/upload', { method: 'POST', body: formData });
-        if (response.ok) {
-            await loadPhotos();
-        } else {
-            alert('上传失败，请重试');
-        }
+
+        progressText.textContent = '上传中...';
+        progressBar.style.width = '60%';
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const pct = 60 + (e.loaded / e.total) * 35;
+                progressBar.style.width = `${pct}%`;
+                progressText.textContent = `上传中 ${Math.round(e.loaded / 1024)}KB / ${Math.round(e.total / 1024)}KB`;
+            }
+        };
+
+        await new Promise((resolve, reject) => {
+            xhr.onload = () => {
+                if (xhr.status === 200) resolve();
+                else reject(new Error('上传失败'));
+            };
+            xhr.onerror = () => reject(new Error('网络错误'));
+            xhr.send(formData);
+        });
+
+        progressBar.style.width = '100%';
+        progressText.textContent = `上传成功 ${files.length} 张 ✓`;
+        await loadPhotos();
+        setTimeout(() => {
+            progressWrap.classList.remove('visible');
+            progressBar.style.width = '0%';
+        }, 1200);
     } catch (error) {
         console.error('上传失败:', error);
-        alert('上传失败，请检查网络连接');
+        progressText.textContent = '上传失败，请重试';
+        progressBar.style.background = '#ff4757';
+        setTimeout(() => {
+            progressWrap.classList.remove('visible');
+            progressBar.style.width = '0%';
+            progressBar.style.background = '';
+        }, 2000);
     } finally {
         uploadBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> 上传图片`;
         uploadBtn.style.pointerEvents = 'auto';
+        uploadBtn.style.opacity = '1';
         fileInput.value = '';
     }
 });
 
 // ===== 渲染相册 =====
+let batchMode = false;
+let selectedIds = new Set();
+
 function renderGallery() {
     gallery.innerHTML = '';
+
+    if (photos.length === 0) {
+        gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:rgba(255,255,255,0.6);font-size:1.1em;">📷 还没有图片，快来上传第一张吧！</div>';
+        document.getElementById('headerStats').textContent = '';
+        return;
+    }
+
+    document.getElementById('headerStats').textContent = `共 ${photos.length} 张照片`;
+
+    if (batchMode) {
+        gallery.classList.add('batch-mode');
+    } else {
+        gallery.classList.remove('batch-mode');
+        selectedIds.clear();
+    }
 
     photos.forEach((photo, index) => {
         const card = document.createElement('div');
         card.className = 'photo-card';
-        card.style.animationDelay = `${index * 0.1}s`;
+        if (batchMode && selectedIds.has(photo.id)) card.classList.add('selected');
+        card.style.animationDelay = `${index * 0.05}s`;
 
         const img = document.createElement('img');
         img.dataset.src = photo.src;
@@ -248,7 +305,6 @@ function renderGallery() {
         const cardInfo = document.createElement('div');
         cardInfo.className = 'card-info';
 
-        // 表情摘要（取前3个有数量的表情）
         const reactions = photo.reactions || {};
         const emojiMap = { '❤️': 'heart', '😂': 'laugh', '😮': 'wow', '😢': 'sad', '👍': 'like' };
         const reactionSummary = Object.entries(emojiMap)
@@ -275,7 +331,22 @@ function renderGallery() {
 
         card.appendChild(img);
         card.appendChild(cardInfo);
-        card.addEventListener('click', () => openLightbox(index));
+
+        card.addEventListener('click', () => {
+            if (batchMode) {
+                if (selectedIds.has(photo.id)) {
+                    selectedIds.delete(photo.id);
+                    card.classList.remove('selected');
+                } else {
+                    selectedIds.add(photo.id);
+                    card.classList.add('selected');
+                }
+                updateBatchCount();
+            } else {
+                openLightbox(index);
+            }
+        });
+
         gallery.appendChild(card);
     });
 
@@ -296,6 +367,11 @@ function renderGallery() {
 }
 
 // ===== 灯箱 =====
+function updateNavBtns() {
+    document.getElementById('lightboxPrev').disabled = currentPhotoIndex <= 0;
+    document.getElementById('lightboxNext').disabled = currentPhotoIndex >= photos.length - 1;
+}
+
 async function openLightbox(index) {
     currentPhotoIndex = index;
     const photo = photos[index];
@@ -307,7 +383,6 @@ async function openLightbox(index) {
     resetEditSliders();
     resetFilterBtns();
 
-    // 关闭编辑面板
     document.getElementById('filterBar').classList.remove('visible');
     document.getElementById('editBar').classList.remove('visible');
     document.getElementById('editToggleBtn').classList.remove('active');
@@ -317,6 +392,7 @@ async function openLightbox(index) {
     lightbox.classList.add('active');
     document.body.style.overflow = 'hidden';
 
+    updateNavBtns();
     updateReactionUI(photo.reactions || {});
 
     try {
@@ -583,45 +659,144 @@ pwdInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closePwdModal();
 });
 
-document.getElementById('pwdConfirmBtn').addEventListener('click', async () => {
-    const password = pwdInput.value;
-    if (!password) { pwdError.textContent = '请输入密码'; return; }
-    if (currentPhotoIndex === null) { closePwdModal(); return; }
-
-    const photo = photos[currentPhotoIndex];
-
-    try {
-        const response = await fetch(`/api/photos/${photo.id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
-        });
-
-        if (response.ok) {
-            closePwdModal();
-            await loadPhotos();
-            closeLightbox();
-        } else {
-            const data = await response.json();
-            pwdError.textContent = data.error || '密码错误';
-            pwdInput.value = '';
-            pwdInput.focus();
-        }
-    } catch (error) {
-        console.error('删除失败:', error);
-        pwdError.textContent = '网络错误，请重试';
-    }
-});
-
 async function deletePhoto() {
     if (currentPhotoIndex === null) return;
-    openPwdModal();
+    const pwdInput = document.getElementById('pwdInput');
+    const pwdError = document.getElementById('pwdError');
+    pwdInput.value = '';
+    pwdError.textContent = '';
+    document.getElementById('pwdModal')._batchMode = false;
+    document.getElementById('pwdModal').classList.add('open');
+    setTimeout(() => pwdInput.focus(), 100);
 }
 
 // ===== 事件绑定 =====
 closeBtn.addEventListener('click', closeLightbox);
 deleteBtn.addEventListener('click', deletePhoto);
 submitCommentBtn.addEventListener('click', submitComment);
+
+// 灯箱左右导航
+document.getElementById('lightboxPrev').addEventListener('click', () => {
+    if (currentPhotoIndex > 0) openLightbox(currentPhotoIndex - 1);
+});
+document.getElementById('lightboxNext').addEventListener('click', () => {
+    if (currentPhotoIndex < photos.length - 1) openLightbox(currentPhotoIndex + 1);
+});
+
+// ===== 批量删除 =====
+function updateBatchCount() {
+    document.getElementById('batchCount').textContent = `已选 ${selectedIds.size} 张`;
+    document.getElementById('batchDeleteBtn').disabled = selectedIds.size === 0;
+}
+
+function enterBatchMode() {
+    batchMode = true;
+    selectedIds.clear();
+    document.getElementById('batchDeleteToggleBtn').classList.add('active');
+    document.getElementById('batchBar').classList.add('visible');
+    updateBatchCount();
+    renderGallery();
+}
+
+function exitBatchMode() {
+    batchMode = false;
+    selectedIds.clear();
+    document.getElementById('batchDeleteToggleBtn').classList.remove('active');
+    document.getElementById('batchBar').classList.remove('visible');
+    renderGallery();
+}
+
+document.getElementById('batchDeleteToggleBtn').addEventListener('click', () => {
+    batchMode ? exitBatchMode() : enterBatchMode();
+});
+
+document.getElementById('batchCancelBtn').addEventListener('click', exitBatchMode);
+
+document.getElementById('batchSelectAllBtn').addEventListener('click', () => {
+    const allSelected = selectedIds.size === photos.length;
+    if (allSelected) {
+        selectedIds.clear();
+    } else {
+        photos.forEach(p => selectedIds.add(p.id));
+    }
+    updateBatchCount();
+    renderGallery();
+});
+
+document.getElementById('batchDeleteBtn').addEventListener('click', () => {
+    if (selectedIds.size === 0) return;
+    const pwdInput = document.getElementById('pwdInput');
+    const pwdError = document.getElementById('pwdError');
+    pwdInput.value = '';
+    pwdError.textContent = '';
+    document.getElementById('pwdModal').classList.add('open');
+    setTimeout(() => pwdInput.focus(), 100);
+    // 标记为批量删除模式
+    document.getElementById('pwdModal')._batchMode = true;
+});
+
+// 修改密码确认逻辑，支持批量删除
+document.getElementById('pwdConfirmBtn').addEventListener('click', async () => {
+    const password = document.getElementById('pwdInput').value;
+    const pwdError = document.getElementById('pwdError');
+    if (!password) { pwdError.textContent = '请输入密码'; return; }
+
+    const modal = document.getElementById('pwdModal');
+
+    if (modal._batchMode) {
+        // 批量删除
+        const ids = [...selectedIds];
+        let failed = 0;
+        for (const id of ids) {
+            try {
+                const res = await fetch(`/api/photos/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    if (data.error === '密码错误') {
+                        pwdError.textContent = '密码错误';
+                        document.getElementById('pwdInput').value = '';
+                        document.getElementById('pwdInput').focus();
+                        return;
+                    }
+                    failed++;
+                }
+            } catch { failed++; }
+        }
+        modal._batchMode = false;
+        document.getElementById('pwdModal').classList.remove('open');
+        exitBatchMode();
+        await loadPhotos();
+        if (failed > 0) alert(`${failed} 张删除失败`);
+    } else {
+        // 单张删除（原逻辑）
+        if (currentPhotoIndex === null) { document.getElementById('pwdModal').classList.remove('open'); return; }
+        const photo = photos[currentPhotoIndex];
+        try {
+            const response = await fetch(`/api/photos/${photo.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            if (response.ok) {
+                document.getElementById('pwdModal').classList.remove('open');
+                await loadPhotos();
+                closeLightbox();
+            } else {
+                const data = await response.json();
+                pwdError.textContent = data.error || '密码错误';
+                document.getElementById('pwdInput').value = '';
+                document.getElementById('pwdInput').focus();
+            }
+        } catch (error) {
+            console.error('删除失败:', error);
+            pwdError.textContent = '网络错误，请重试';
+        }
+    }
+});
 
 // 编辑按钮切换
 document.getElementById('editToggleBtn').addEventListener('click', () => {
@@ -656,3 +831,23 @@ document.addEventListener('keydown', (e) => {
 initTheme();
 initNickname();
 loadPhotos();
+
+// ===== Header 动态文字 =====
+const subtitles = [
+    '记录美好瞬间 ✨',
+    '每一张都是故事 📖',
+    '时光留影，岁月如歌 🎵',
+    '定格最美的瞬间 🌸',
+    '用镜头记录生活 📷',
+    '回忆是最好的礼物 🎁',
+];
+let subtitleIdx = 0;
+const subtitleEl = document.getElementById('dynamicSubtitle');
+setInterval(() => {
+    subtitleEl.style.opacity = '0';
+    setTimeout(() => {
+        subtitleIdx = (subtitleIdx + 1) % subtitles.length;
+        subtitleEl.textContent = subtitles[subtitleIdx];
+        subtitleEl.style.opacity = '1';
+    }, 400);
+}, 3500);
