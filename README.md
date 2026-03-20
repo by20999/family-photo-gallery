@@ -1,4 +1,4 @@
-# 家庭共享相册
+﻿# 家庭共享相册
 
 一个轻量的家庭相册网站，支持上传、浏览、评论、表情回应和图片编辑。
 
@@ -42,7 +42,7 @@ npm start
    - 在服务的 Variables 里添加：`RAILWAY_VOLUME_MOUNT_PATH` = `/data`
 
 4. 设置环境变量（Variables 页面）：
-   - `DELETE_PASSWORD` = 你的删除密码（默认 `123456`）
+   - `DELETE_PASSWORD` = 你的删除密码（默认 `by-2099`）
    - `PORT` = `3000`（Railway 会自动注入，可不填）
 
 5. 部署完成后 Railway 会分配一个 `.railway.app` 域名，也可以绑定自定义域名
@@ -70,3 +70,4 @@ git push origin main
 - 单张图片最大 10MB，一次最多上传 10 张
 - 昵称存在浏览器 localStorage，换设备需要重新设置
 - 删除密码通过环境变量 `DELETE_PASSWORD` 配置
+

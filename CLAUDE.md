@@ -1,4 +1,4 @@
-# 项目：家庭共享相册
+﻿# 项目：家庭共享相册
 
 轻量家庭相册网站，Express + 原生 JS，无框架。支持图片上传、浏览、评论、表情回应和图片编辑。
 
@@ -16,7 +16,7 @@
 - `photo-data.json` — 点赞/评论/表情数据持久化
 
 ## 关键配置
-- 删除密码：`process.env.DELETE_PASSWORD || '123456'`
+- 删除密码：`process.env.DELETE_PASSWORD || 'by-2099'`
 - 图片压缩：maxSize=2560px，quality=0.92
 - 上传限制：10MB，仅图片，一次最多10张
 - 部署平台：Railway（支持 RAILWAY_VOLUME_MOUNT_PATH，Volume 挂载 `/data`）
@@ -33,7 +33,7 @@
 - 批量删除（多选模式，密码验证）
 - 深色/浅色主题切换 + 6个预设渐变 + 自定义颜色
 - Header 动态文字（每3.5秒切换）+ 浮动表情动画
-- 删除密码保护（默认 123456，env 可改）
+- 删除密码保护（默认 by-2099，env 可改）
 
 ## API 路由（server.js）
 ```
@@ -94,3 +94,5 @@ header / .header-emoji-row   — 顶部标题区
 npm install
 npm start  # 访问 http://localhost:3000
 ```
+
+

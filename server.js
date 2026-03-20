@@ -1,10 +1,10 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// 删除密码，可通过环境变量 DELETE_PASSWORD 修改，默认 "123456"
-const DELETE_PASSWORD = process.env.DELETE_PASSWORD || '123456';
+// 删除密码，可通过环境变量 DELETE_PASSWORD 修改，默认 "by-2099"
+const DELETE_PASSWORD = process.env.DELETE_PASSWORD || 'by-2099';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -262,3 +262,4 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📁 图片保存在: ${uploadDir}`);
     console.log(`💾 点赞评论数据保存在: ${dataFile}`);
 });
+
