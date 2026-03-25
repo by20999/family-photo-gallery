@@ -1,4 +1,4 @@
-﻿# 家庭共享相册
+# 家庭共享相册
 
 一个轻量但功能完整的家庭共享相册网站，基于 `Node.js + Express + 原生 HTML/CSS/JS`。适合家庭成员一起上传照片、浏览回忆、留言互动，并通过主题、标签、搜索和排序把照片整理得更有温度。
 
@@ -24,17 +24,21 @@
 - 后端：`Node.js + Express`
 - 上传：`multer`
 - 数据存储：
-  - 图片文件：`uploads/`
+  - 原图：`uploads/`
+  - 缩略图：`uploads/thumbnails/`（本地）或 `thumbnails/`（Railway Volume）
   - 元数据：`photo-data.json`
 
 ## 主要文件
 
 - `index.html`：页面结构
 - `style.css`：所有样式与响应式
-- `script.js`：前端交互、主题、搜索、分组、灯箱、拖拽排序
-- `server.js`：图片接口、评论、表情、删除、排序持久化
-- `uploads/`：图片目录
-- `photo-data.json`：点赞、评论、标签、描述、排序等数据
+- `js/main.js`：前端模块入口
+- `js/gallery.js` / `js/upload.js` / `js/lightbox.js` / `js/theme.js` / `js/comments.js`：前端模块
+- `server.js`：后端启动入口
+- `server/routes/` / `server/data/` / `server/services/`：后端路由、存储与缩略图逻辑
+- `uploads/`：原图目录
+- `uploads/thumbnails/` 或 `thumbnails/`：缩略图目录
+- `photo-data.json`：点赞、评论、标签、描述、排序、缩略图文件名等数据
 - `CLAUDE.md`：项目约定与修改注意事项
 - `CODEX.md`：给 Codex 快速接手项目用的上下文文档
 
@@ -129,6 +133,6 @@ Railway 部署时建议：
 
 ## 注意事项
 
-- `photo-data.json` 现在不仅保存点赞和评论，也保存：`caption`、`tags`、`order`
+- `photo-data.json` 现在不仅保存点赞和评论，也保存：`caption`、`tags`、`order`、`thumbnail`
 - 如果你在新对话里直接让我继续开发，优先让我看 `CODEX.md`
 - 如果要修改项目约定和注意事项，优先更新 `CLAUDE.md`

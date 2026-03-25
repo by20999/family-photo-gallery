@@ -1,19 +1,22 @@
-﻿# 项目：家庭共享相册
+# 项目：家庭共享相册
 
 轻量家庭相册网站，`Express + 原生 JS`，无前端框架。支持图片上传、浏览、评论、表情回应、图片编辑、主题切换、标签搜索、分组查看和拖拽排序。
 
 ## 技术栈
 - 前端：原生 HTML / CSS / JS
 - 后端：Node.js + Express + multer
-- 存储：本地文件系统（`uploads/`）+ JSON 文件（`photo-data.json`）
+- 存储：本地文件系统（原图 `uploads/`、缩略图 `uploads/thumbnails/` 或 `thumbnails/`）+ JSON 文件（`photo-data.json`）
 
 ## 文件结构
 - `index.html` — 页面结构
 - `style.css` — 所有样式（含响应式）
-- `script.js` — 前端逻辑
-- `server.js` — Express 后端，端口 3000
-- `uploads/` — 图片存储目录
-- `photo-data.json` — 点赞 / 评论 / 表情 / 描述 / 标签 / 排序数据
+- `js/main.js` — 前端模块入口
+- `js/gallery.js` / `js/upload.js` / `js/lightbox.js` / `js/theme.js` / `js/comments.js` — 前端分模块逻辑
+- `server.js` — Express 启动入口，端口 3000
+- `server/routes/` / `server/data/` / `server/services/` — 后端路由、存储与缩略图逻辑
+- `uploads/` — 原图目录
+- `uploads/thumbnails/` 或 `thumbnails/` — 缩略图目录
+- `photo-data.json` — 点赞 / 评论 / 表情 / 描述 / 标签 / 排序 / 缩略图数据
 - `README.md` — 用户向项目说明
 - `CODEX.md` — 给 Codex 新对话快速接手的上下文文档
 
@@ -57,7 +60,7 @@ POST   /api/photos/:id/comment
 DELETE /api/photos/:photoId/comment/:commentId
 ```
 
-## 关键前端状态 / 函数（script.js）
+## 关键前端状态 / 函数（现拆分在 js/ 模块）
 ```text
 photos[]              — 全量图片数组（当前全局顺序）
 visiblePhotos[]       — 当前可见图片数组（搜索 / 分组后）
@@ -122,7 +125,8 @@ header / .header-kicker       — 顶部标题区
   "reactions": {},
   "caption": "家庭聚餐",
   "tags": ["家宴", "周末"],
-  "order": 0
+  "order": 0,
+  "thumbnail": "1711111111111-abc123def.jpg"
 }
 ```
 

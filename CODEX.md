@@ -1,4 +1,4 @@
-﻿# CODEX 项目接手文档
+# CODEX 项目接手文档
 
 这是一份给 Codex 在新对话中快速接手项目使用的上下文文档。你可以在新对话里直接说：
 
@@ -74,7 +74,8 @@
   "reactions": {},
   "caption": "春天一起去公园",
   "tags": ["春天", "散步"],
-  "order": 0
+  "order": 0,
+  "thumbnail": "1711111111111-abc123def.jpg"
 }
 ```
 
@@ -101,8 +102,10 @@ DELETE /api/photos/:photoId/comment/:commentId
 
 - `index.html`：页面结构和各功能区 DOM
 - `style.css`：所有样式
-- `script.js`：前端业务逻辑主入口
-- `server.js`：后端接口与持久化
+- `js/main.js`：前端模块入口
+- `js/gallery.js` / `js/upload.js` / `js/lightbox.js` / `js/theme.js` / `js/comments.js`：前端分模块逻辑
+- `server.js`：后端启动入口
+- `server/routes/*.js` / `server/data/photoStore.js` / `server/services/thumbnailService.js`：后端路由、存储和缩略图逻辑
 - `CLAUDE.md`：项目规则、注意事项、约定
 - `README.md`：面向用户 / 维护者的项目说明
 - `部署教程.md`：部署和环境变量说明
