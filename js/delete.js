@@ -1,38 +1,71 @@
 import { dom } from './dom.js';
 import { state, getCurrentPhoto } from './state.js';
-import { deletePhotoRequest } from './api.js';
+import { deletePhotoRequest, deleteGroupRequest } from './api.js';
 
 let loadPhotosHandler = async () => {};
 let closeLightboxHandler = () => {};
 let exitBatchModeHandler = () => {};
 
+function resetPwdModalState() {
+    dom.pwdModal._batchMode = false;
+    dom.pwdModal._customConfirm = null;
+}
+
 function closePwdModal() {
     dom.pwdModal.classList.remove('open');
+    resetPwdModalState();
+}
+
+function preparePwdModal() {
+    dom.pwdInput.value = '';
+    dom.pwdError.textContent = '';
+    dom.pwdModal.classList.add('open');
+    setTimeout(() => dom.pwdInput.focus(), 100);
 }
 
 export function openSingleDeleteModal() {
     if (!getCurrentPhoto()) return;
-    dom.pwdInput.value = '';
-    dom.pwdError.textContent = '';
+    resetPwdModalState();
     dom.pwdModal._batchMode = false;
-    dom.pwdModal.classList.add('open');
-    setTimeout(() => dom.pwdInput.focus(), 100);
+    preparePwdModal();
 }
 
 export function openBatchDeleteModal() {
     if (state.selectedIds.size === 0) return;
-    dom.pwdInput.value = '';
-    dom.pwdError.textContent = '';
+    resetPwdModalState();
     dom.pwdModal._batchMode = true;
-    dom.pwdModal.classList.add('open');
-    setTimeout(() => dom.pwdInput.focus(), 100);
+    preparePwdModal();
+}
+
+export function openGroupDeleteModal(groupName) {
+    const normalized = typeof groupName === 'string' ? groupName.trim() : '';
+    if (!normalized || normalized === '\u5168\u90e8\u56fe\u7247') return;
+    resetPwdModalState();
+    dom.pwdModal._customConfirm = async (password) => {
+        await deleteGroupRequest(normalized, password);
+        closePwdModal();
+        await loadPhotosHandler();
+    };
+    preparePwdModal();
 }
 
 async function handlePasswordConfirm() {
     const password = dom.pwdInput.value;
 
     if (!password) {
-        dom.pwdError.textContent = '请输入密码';
+        dom.pwdError.textContent = '\u8bf7\u8f93\u5165\u5bc6\u7801';
+        return;
+    }
+
+    if (typeof dom.pwdModal._customConfirm === 'function') {
+        try {
+            await dom.pwdModal._customConfirm(password);
+        } catch (error) {
+            console.error('\u5bc6\u7801\u64cd\u4f5c\u5931\u8d25:', error);
+            dom.pwdError.textContent = error.message || '\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u91cd\u8bd5';
+            dom.pwdInput.value = '';
+            dom.pwdInput.focus();
+        }
         return;
     }
 
@@ -43,8 +76,8 @@ async function handlePasswordConfirm() {
             try {
                 await deletePhotoRequest(id, password);
             } catch (error) {
-                if (error.message === '密码错误') {
-                    dom.pwdError.textContent = '密码错误';
+                if (error.message === '\u5bc6\u7801\u9519\u8bef') {
+                    dom.pwdError.textContent = '\u5bc6\u7801\u9519\u8bef';
                     dom.pwdInput.value = '';
                     dom.pwdInput.focus();
                     return;
@@ -53,11 +86,11 @@ async function handlePasswordConfirm() {
             }
         }
 
-        dom.pwdModal._batchMode = false;
+        resetPwdModalState();
         closePwdModal();
         exitBatchModeHandler();
         await loadPhotosHandler();
-        if (failed > 0) alert(`${failed} 张删除失败`);
+        if (failed > 0) alert(`${failed} \u5f20\u5220\u9664\u5931\u8d25`);
         return;
     }
 
@@ -73,8 +106,8 @@ async function handlePasswordConfirm() {
         await loadPhotosHandler();
         closeLightboxHandler();
     } catch (error) {
-        console.error('删除失败:', error);
-        dom.pwdError.textContent = error.message || '网络错误，请重试';
+        console.error('\u5220\u9664\u5931\u8d25:', error);
+        dom.pwdError.textContent = error.message || '\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u91cd\u8bd5';
         dom.pwdInput.value = '';
         dom.pwdInput.focus();
     }

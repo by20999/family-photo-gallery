@@ -1,8 +1,9 @@
-import { dom } from './dom.js';
+﻿import { dom } from './dom.js';
 import { getCurrentPhoto, updatePhotoInStore } from './state.js';
 import { reactToPhoto, submitPhotoComment, deletePhotoComment } from './api.js';
 import { escapeHtml } from './utils.js';
 import { getNickname } from './profile.js';
+import { showStatusNotice } from './feedback.js';
 
 const emojiToId = { '❤️': 'react-heart', '😂': 'react-laugh', '😮': 'react-wow', '😢': 'react-sad', '👍': 'react-like' };
 const reactedKey = (photoId) => `reacted_${photoId}`;
@@ -34,9 +35,10 @@ async function deleteComment(commentId) {
         updatePhotoInStore(photo.id, { comments, commentsCount: comments.length });
         renderComments(comments);
         renderGalleryHandler();
+        showStatusNotice('评论已删除', { tone: 'success', duration: 1800 });
     } catch (error) {
         console.error('删除评论失败:', error);
-        alert('删除失败，请重试');
+        showStatusNotice(error.message || '删除评论失败，请重试', { tone: 'error' });
     }
 }
 
@@ -44,7 +46,7 @@ export function renderComments(comments) {
     dom.commentsList.innerHTML = '';
 
     if (!comments.length) {
-        dom.commentsList.innerHTML = '<p style="color: #999; text-align: center;">还没有评论，快来抢沙发吧！</p>';
+        dom.commentsList.innerHTML = '<p style="color: #999; text-align: center;">还没有评论，快来留下第一句回忆吧！</p>';
         return;
     }
 
@@ -83,7 +85,7 @@ async function submitComment() {
 
     const text = dom.commentInput.value.trim();
     if (!text) {
-        alert('请输入评论内容');
+        showStatusNotice('先写一句评论再发表吧。', { tone: 'info', duration: 2200 });
         return;
     }
 
@@ -98,9 +100,10 @@ async function submitComment() {
         renderGalleryHandler();
         dom.commentInput.value = '';
         dom.authorInput.value = '';
+        showStatusNotice('评论发表成功', { tone: 'success', duration: 1800 });
     } catch (error) {
         console.error('评论失败:', error);
-        alert('评论失败，请重试');
+        showStatusNotice(error.message || '评论失败，请重试', { tone: 'error' });
     }
 }
 
@@ -126,6 +129,7 @@ export function initComments({ onRenderGallery }) {
                 setTimeout(() => btn.classList.remove('pop'), 300);
             } catch (error) {
                 console.error('表情回应失败:', error);
+                showStatusNotice(error.message || '表情回应失败，请稍后重试', { tone: 'error' });
             }
         });
     });

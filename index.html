@@ -63,7 +63,24 @@
             <div class="header-stats" id="headerStats"></div>
         </header>
 
-        <div class="upload-section">
+        <section class="memory-board" id="memoryBoard" hidden>
+            <article class="memory-panel">
+                <div class="memory-panel-head">
+                    <h2>&#26368;&#36817;&#26032;&#22686;</h2>
+                    <p>&#30475;&#30475;&#36825;&#27573;&#26102;&#38388;&#21018;&#25918;&#36827;&#30456;&#20876;&#30340;&#26032;&#29031;&#29255;&#12290;</p>
+                </div>
+                <div class="memory-strip" id="memoryRecentList"></div>
+            </article>
+            <article class="memory-panel">
+                <div class="memory-panel-head">
+                    <h2>&#24448;&#24180;&#20170;&#26085;</h2>
+                    <p>&#21516;&#19968;&#22825;&#30041;&#19979;&#36807;&#30340;&#23478;&#24237;&#29255;&#27573;&#65292;&#20250;&#22312;&#36825;&#37324;&#37325;&#36898;&#12290;</p>
+                </div>
+                <div class="memory-strip" id="memoryTodayList"></div>
+            </article>
+        </section>
+
+        <div class="upload-section" id="uploadSection">
             <label for="fileInput" class="upload-btn" id="uploadBtn">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
@@ -76,24 +93,52 @@
                 </svg>
                 多选
             </button>
-            <button class="group-toggle-btn" id="createGroupBtn" type="button">新建分组</button>
+            <button class="group-toggle-btn" id="createGroupBtn" type="button">加入/新建分组</button>
             <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <div class="upload-drop-hint" id="uploadDropHint">&#25903;&#25345;&#25302;&#25341;&#19978;&#20256;&#65292;&#20250;&#33258;&#21160;&#27839;&#29992;&#24403;&#21069;&#25551;&#36848;&#12289;&#26631;&#31614;&#21644;&#20998;&#32452;</div>
         </div>
 
         <div class="upload-meta-panel">
             <input type="text" id="captionInput" placeholder="给这一组照片写一句描述，例如：外婆生日的小聚会" maxlength="80">
             <input type="text" id="tagsInput" placeholder="标签用逗号分开，例如：生日,家宴,春天" maxlength="60">
+            <select id="uploadGroupSelect" class="upload-group-select" aria-label="上传时加入分组">
+                <option value="">不加入分组</option>
+            </select>
         </div>
 
         <div class="album-toolbar">
             <div class="search-box">
-                <input type="search" id="searchInput" placeholder="统一搜索分组、照片名称、描述或标签">
-                <button id="clearSearchBtn" type="button" hidden>清空</button>
+                <input type="search" id="searchInput" placeholder="&#25628;&#32034;&#20998;&#32452;&#12289;&#25991;&#20214;&#21517;&#12289;&#25551;&#36848;&#25110;&#26631;&#31614;">
+                <button id="clearSearchBtn" type="button" hidden>&#28165;&#31354;</button>
             </div>
-            <div class="search-hint" id="searchHint">可以直接搜索分组名、照片名称、描述或标签，结果会回到对应分组里。</div>
+            <div class="toolbar-select-group" aria-label="&#30456;&#20876;&#31579;&#36873;&#24037;&#20855;">
+                <label class="toolbar-select" for="sortSelect">
+                    <span>&#25490;&#24207;</span>
+                    <select id="sortSelect">
+                        <option value="custom">&#25163;&#21160;&#39034;&#24207;</option>
+                        <option value="newest">&#26368;&#26032;&#19978;&#20256;</option>
+                        <option value="oldest">&#26368;&#26089;&#19978;&#20256;</option>
+                        <option value="name">&#25353;&#21517;&#31216;</option>
+                    </select>
+                </label>
+                <label class="toolbar-select" for="contentFilterSelect">
+                    <span>&#20869;&#23481;</span>
+                    <select id="contentFilterSelect">
+                        <option value="all">&#20840;&#37096;&#29031;&#29255;</option>
+                        <option value="captioned">&#20165;&#30475;&#26377;&#31616;&#20171;</option>
+                        <option value="favorites">&#20165;&#30475;&#25910;&#34255;</option>
+                    </select>
+                </label>
+            </div>
+            <div class="search-hint" id="searchHint">&#21487;&#20197;&#25628;&#32034;&#20998;&#32452;&#12289;&#25991;&#20214;&#21517;&#12289;&#25551;&#36848;&#25110;&#26631;&#31614;&#65292;&#20063;&#21487;&#20197;&#30452;&#25509;&#28857;&#20987;&#26631;&#31614;&#24555;&#36895;&#31579;&#36873;&#12290;</div>
+            <div class="gallery-status" id="galleryStatus" hidden></div>
         </div>
 
         <nav class="group-nav" id="groupNav" aria-label="照片分组导航"></nav>
+        <div class="group-actions" id="groupActions" hidden>
+            <button class="group-manage-btn" id="renameGroupBtn" type="button">&#37325;&#21629;&#21517;&#24403;&#21069;&#20998;&#32452;</button>
+            <button class="group-manage-btn danger" id="deleteGroupBtn" type="button">&#21024;&#38500;&#24403;&#21069;&#20998;&#32452;</button>
+        </div>
 
         <!-- 上传进度条 -->
         <div class="upload-progress-wrap" id="uploadProgressWrap">
@@ -103,15 +148,17 @@
 
         <!-- 批量删除操作栏 -->
         <div class="batch-bar" id="batchBar">
-            <span class="batch-count" id="batchCount">已选 0 张</span>
-            <button class="batch-select-all-btn" id="batchSelectAllBtn">全选</button>
+            <span class="batch-count" id="batchCount">&#24050;&#36873; 0 &#24352;</span>
+            <button class="batch-select-all-btn" id="batchSelectAllBtn">&#20840;&#36873;&#24403;&#21069;&#32467;&#26524;</button>
+            <button class="batch-action-btn" id="batchGroupBtn" type="button">&#21152;&#20837;/&#26032;&#24314;&#20998;&#32452;</button>
+            <button class="batch-action-btn" id="batchCaptionBtn" type="button">&#25209;&#37327;&#20889;&#31616;&#20171;</button>
             <button class="batch-delete-btn" id="batchDeleteBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
                 </svg>
-                删除所选
+                &#21024;&#38500;&#25152;&#36873;
             </button>
-            <button class="batch-cancel-btn" id="batchCancelBtn">取消</button>
+            <button class="batch-cancel-btn" id="batchCancelBtn">&#21462;&#28040;</button>
         </div>
 
         <div class="gallery" id="gallery"></div>
@@ -160,17 +207,18 @@
             <div class="photo-story" id="photoStory"></div>
 
             <div class="photo-actions">
-                <!-- 表情回应区 -->
+                <!-- reactions -->
                 <div class="reactions-wrap">
                     <div class="reaction-btns" id="reactionBtns">
-                        <button class="reaction-btn" data-emoji="❤️" title="爱心"><span>❤️</span><span class="reaction-count" id="react-heart">0</span></button>
-                        <button class="reaction-btn" data-emoji="😂" title="哈哈"><span>😂</span><span class="reaction-count" id="react-laugh">0</span></button>
-                        <button class="reaction-btn" data-emoji="😮" title="哇哦"><span>😮</span><span class="reaction-count" id="react-wow">0</span></button>
-                        <button class="reaction-btn" data-emoji="😢" title="感动"><span>😢</span><span class="reaction-count" id="react-sad">0</span></button>
-                        <button class="reaction-btn" data-emoji="👍" title="点赞"><span>👍</span><span class="reaction-count" id="react-like">0</span></button>
+                        <button class="reaction-btn" data-emoji="&#10084;&#65039;" title="&#29233;&#24515;"><span>&#10084;&#65039;</span><span class="reaction-count" id="react-heart">0</span></button>
+                        <button class="reaction-btn" data-emoji="&#128514;" title="&#21704;&#21704;"><span>&#128514;</span><span class="reaction-count" id="react-laugh">0</span></button>
+                        <button class="reaction-btn" data-emoji="&#128558;" title="&#21734;&#21734;"><span>&#128558;</span><span class="reaction-count" id="react-wow">0</span></button>
+                        <button class="reaction-btn" data-emoji="&#128546;" title="&#24863;&#21160;"><span>&#128546;</span><span class="reaction-count" id="react-sad">0</span></button>
+                        <button class="reaction-btn" data-emoji="&#128077;" title="&#28857;&#36190;"><span>&#128077;</span><span class="reaction-count" id="react-like">0</span></button>
                     </div>
                 </div>
-                <button class="delete-btn" id="deleteBtn">删除</button>
+                <button class="favorite-btn" id="favoriteBtn" type="button">&#9734; &#25910;&#34255;</button>
+                <button class="delete-btn" id="deleteBtn">&#21024;&#38500;</button>
             </div>
 
             <div class="comments-section">

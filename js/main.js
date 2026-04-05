@@ -3,7 +3,7 @@ import { initTheme } from './theme.js';
 import { initNickname } from './profile.js';
 import { initGallery, loadPhotos, renderGallery, exitBatchMode } from './gallery.js';
 import { initComments } from './comments.js';
-import { initDeleteFlow, openBatchDeleteModal, openSingleDeleteModal } from './delete.js';
+import { initDeleteFlow, openBatchDeleteModal, openSingleDeleteModal, openGroupDeleteModal } from './delete.js';
 import { initLightbox, openLightbox, closeLightbox } from './lightbox.js';
 import { initUpload } from './upload.js';
 
@@ -40,7 +40,8 @@ initLightbox({
 });
 initGallery({
     onOpenLightbox: openLightbox,
-    onOpenBatchDeleteModal: openBatchDeleteModal
+    onOpenBatchDeleteModal: openBatchDeleteModal,
+    onOpenGroupDeleteModal: openGroupDeleteModal
 });
 initUpload({ onLoadPhotos: loadPhotos });
 startSubtitleRotation();

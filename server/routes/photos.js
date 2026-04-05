@@ -17,6 +17,7 @@ const {
     sortPhotos
 } = require('../data/photoStore');
 const { ensureAndPersistThumbnails } = require('../services/thumbnailService');
+const { loadGroupData, saveGroupData, syncGroupDataWithPhotos } = require('../data/groupStore');
 
 function createPhotosRouter() {
     const router = express.Router();
@@ -42,6 +43,9 @@ function createPhotosRouter() {
         try {
             const files = await listPhotoFiles();
             const photoData = loadPhotoData();
+            const rawGroupData = loadGroupData();
+            const groupData = syncGroupDataWithPhotos(rawGroupData, photoData);
+            const groupDataChanged = JSON.stringify(rawGroupData) !== JSON.stringify(groupData);
             const thumbnailChanged = await ensureAndPersistThumbnails(files, photoData);
             const statsEntries = await Promise.all(files.map(async (file) => [file, await fsp.stat(path.join(uploadDir, file))]));
             const statsMap = new Map(statsEntries);
@@ -58,15 +62,20 @@ function createPhotosRouter() {
                     commentsCount: meta.commentsCount,
                     reactions: meta.reactions,
                     caption: meta.caption,
+                    favorited: meta.favorited,
                     tags: meta.tags,
                     order: meta.order,
-                    groupName: meta.groupName
+                    groupName: meta.groupName,
+                    groupCoverPhotoId: meta.groupName ? (groupData[meta.groupName]?.coverPhotoId || '') : ''
                 };
             });
 
             const orderChanged = ensurePhotoOrders(photos, photoData);
             if (thumbnailChanged && !orderChanged) {
                 savePhotoData(photoData);
+            }
+            if (groupDataChanged) {
+                saveGroupData(groupData);
             }
 
             const sortedPhotos = sortPhotos(photos.map((photo) => ({
@@ -90,6 +99,11 @@ function createPhotosRouter() {
         }
 
         const photoData = loadPhotoData();
+        const rawGroupData = loadGroupData();
+        const groupData = syncGroupDataWithPhotos(rawGroupData, photoData);
+        if (JSON.stringify(rawGroupData) !== JSON.stringify(groupData)) {
+            saveGroupData(groupData);
+        }
         const details = getPhotoDetails(photoId, photoData);
 
         res.json({
@@ -100,10 +114,92 @@ function createPhotosRouter() {
             comments: details.comments,
             reactions: details.reactions,
             caption: details.caption,
+            favorited: details.favorited,
             tags: details.tags,
             order: details.order,
-            groupName: details.groupName
+            groupName: details.groupName,
+            groupCoverPhotoId: details.groupName ? (groupData[details.groupName]?.coverPhotoId || '') : ''
         });
+    });
+
+    router.patch('/photos/batch/caption', async (req, res) => {
+        const rawIds = Array.isArray(req.body?.photoIds) ? req.body.photoIds : [];
+        const photoIds = [...new Set(rawIds.map((photoId) => String(photoId || '').trim()).filter(Boolean))];
+
+        if (photoIds.length === 0) {
+            return res.status(400).json({ error: '请选择要更新的照片' });
+        }
+
+        const existingFiles = new Set(await listPhotoFiles());
+        const hasUnknownId = photoIds.some((photoId) => !existingFiles.has(photoId));
+        if (hasUnknownId) {
+            return res.status(400).json({ error: '包含不存在的照片' });
+        }
+
+        const rawCaption = typeof req.body.caption === 'string' ? req.body.caption.trim() : '';
+        const caption = rawCaption.slice(0, 80);
+        const photoData = loadPhotoData();
+
+        photoIds.forEach((photoId) => {
+            const entry = normalizePhotoEntry(photoData[photoId]);
+            photoData[photoId] = {
+                ...entry,
+                caption
+            };
+        });
+
+        savePhotoData(photoData);
+        res.json({ success: true, updatedCount: photoIds.length, caption });
+    });
+
+    router.patch('/photos/:id/favorite', (req, res) => {
+        const photoId = req.params.id;
+        const filePath = path.join(uploadDir, photoId);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: '\u56fe\u7247\u4e0d\u5b58\u5728' });
+        }
+
+        if (typeof req.body?.favorited !== 'boolean') {
+            return res.status(400).json({ error: '\u6536\u85cf\u72b6\u6001\u65e0\u6548' });
+        }
+
+        const photoData = loadPhotoData();
+        const entry = normalizePhotoEntry(photoData[photoId]);
+        entry.favorited = req.body.favorited;
+        photoData[photoId] = entry;
+        savePhotoData(photoData);
+        res.json({ success: true, photoId, favorited: entry.favorited });
+    });
+
+    router.patch('/photos/:id', (req, res) => {
+        const photoId = req.params.id;
+        const filePath = path.join(uploadDir, photoId);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: '图片不存在' });
+        }
+
+        const body = req.body || {};
+        const hasCaption = Object.prototype.hasOwnProperty.call(body, 'caption');
+        const hasTags = Object.prototype.hasOwnProperty.call(body, 'tags');
+
+        if (!hasCaption && !hasTags) {
+            return res.status(400).json({ error: '没有可更新的内容' });
+        }
+
+        const photoData = loadPhotoData();
+        const entry = normalizePhotoEntry(photoData[photoId]);
+        const caption = hasCaption ? String(body.caption || '').trim().slice(0, 80) : entry.caption;
+        const tags = hasTags ? normalizeTags(body.tags).slice(0, 12) : entry.tags;
+
+        photoData[photoId] = {
+            ...entry,
+            caption,
+            tags
+        };
+        savePhotoData(photoData);
+        res.json({ success: true, photoId, caption, tags });
     });
 
     router.post('/upload', upload.array('photos', 10), async (req, res) => {
@@ -114,6 +210,7 @@ function createPhotosRouter() {
 
             const caption = typeof req.body.caption === 'string' ? req.body.caption.trim() : '';
             const tags = normalizeTags(req.body.tags);
+            const groupName = typeof req.body.groupName === 'string' ? req.body.groupName.trim() : '';
             const photoData = loadPhotoData();
             const existingOrders = Object.values(photoData)
                 .map((entry) => normalizePhotoEntry(entry).order)
@@ -129,12 +226,19 @@ function createPhotosRouter() {
                     caption,
                     tags,
                     order,
-                    groupName: ''
+                    groupName
                 };
             });
 
+            let groupData = loadGroupData();
+            if (groupName && !groupData[groupName]?.coverPhotoId && req.files[0]) {
+                groupData[groupName] = { coverPhotoId: req.files[0].filename };
+            }
+            groupData = syncGroupDataWithPhotos(groupData, photoData);
+
             await ensureAndPersistThumbnails(req.files.map((file) => file.filename), photoData);
             savePhotoData(photoData);
+            saveGroupData(groupData);
 
             const photos = req.files.map((file, index) => ({
                 id: file.filename,
@@ -144,7 +248,8 @@ function createPhotosRouter() {
                 caption,
                 tags,
                 order: startOrder + index,
-                groupName: ''
+                groupName,
+                groupCoverPhotoId: groupName ? (groupData[groupName]?.coverPhotoId || '') : ''
             }));
 
             res.json({ success: true, photos });
@@ -198,10 +303,10 @@ function createPhotosRouter() {
         }
 
         const filePath = path.join(uploadDir, photoId);
+        const photoData = loadPhotoData();
         fs.unlink(filePath, (err) => {
             if (err) return res.status(500).json({ error: '删除失败' });
 
-            const photoData = loadPhotoData();
             const thumbSrc = getThumbnailSrc(photoId, photoData[photoId]);
             if (thumbSrc) {
                 const thumbFileName = thumbSrc.replace('/thumbnails/', '');
@@ -211,7 +316,9 @@ function createPhotosRouter() {
                 }
             }
             delete photoData[photoId];
+            const groupData = syncGroupDataWithPhotos(loadGroupData(), photoData);
             savePhotoData(photoData);
+            saveGroupData(groupData);
             res.json({ success: true });
         });
     });

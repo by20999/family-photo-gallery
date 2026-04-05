@@ -1,4 +1,4 @@
-export const GALLERY_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
+﻿export const GALLERY_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
 export const MAX_PARALLEL_IMAGE_LOADS = 4;
 export const IMAGE_RETRY_LIMIT = 1;
 
@@ -15,7 +15,11 @@ export const state = {
     batchMode: false,
     selectedIds: new Set(),
     searchKeyword: '',
+    activeTagFilter: '',
+    loadErrorMessage: '',
     activeGroupName: '全部图片',
+    sortMode: 'custom',
+    contentFilter: 'all',
     draggedPhotoId: null,
     dragMoved: false,
     reorderSaving: false,
@@ -40,6 +44,12 @@ export function setVisiblePhotos(photos) {
 export function updatePhotoInStore(photoId, patch) {
     state.photos = state.photos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
     state.visiblePhotos = state.visiblePhotos.map((photo) => (photo.id === photoId ? { ...photo, ...patch } : photo));
+}
+
+export function updateGroupCoverInStore(groupName, coverPhotoId) {
+    const applyPatch = (photo) => (photo.groupName === groupName ? { ...photo, groupCoverPhotoId: coverPhotoId } : photo);
+    state.photos = state.photos.map(applyPatch);
+    state.visiblePhotos = state.visiblePhotos.map(applyPatch);
 }
 
 export function getCurrentPhoto() {
