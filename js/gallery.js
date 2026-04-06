@@ -11,10 +11,13 @@ const CONTENT_FILTER_LABELS = { all: '\u5168\u90e8\u7167\u7247', captioned: '\u4
 const VIEW_MODE_LABELS = { grid: '\u7f51\u683c', timeline: '\u65f6\u95f4\u7ebf' };
 const MEMORY_CARD_LIMIT = 6;
 const TIMELINE_PREVIEW_LIMIT = 4;
+const RECENT_UPLOAD_HIGHLIGHT_MS = 2400;
 
 let openLightboxHandler = () => {};
 let openBatchDeleteModalHandler = () => {};
 let openGroupDeleteModalHandler = () => {};
+let recentUploadedPhotoIds = new Set();
+let recentUploadCleanupTimer = null;
 
 function normalizeCompare(value) {
     return String(value || '').trim().toLowerCase();
@@ -135,13 +138,72 @@ function buildTimelineSummary(group) {
     const favoriteCount = group.items.filter((photo) => photo.favorited).length;
     const topTags = getTopTags(group.items, 3);
     const pieces = [`收进了 ${group.items.length} 张照片`];
-    if (storyCount > 0) pieces.push(`${storyCount} 张写下了故事`);
-    else pieces.push('还可以补上一句故事让回忆更完整');
+    if (storyCount > 0) pieces.push(`${storyCount} 张写下了记录`);
+    else pieces.push('还可以补上一句描述让这一页更完整');
     if (favoriteCount > 0) pieces.push(`${favoriteCount} 张被特别收藏`);
     if (topTags.length > 0) pieces.push(`关键词是 ${topTags.map((tag) => `#${tag}`).join('、')}`);
     return `${pieces.join('，')}。`;
 }
 
+
+function getMonthMoodMeta(dateValue) {
+    const date = new Date(dateValue);
+    const month = Number.isNaN(date.getTime()) ? 0 : date.getMonth() + 1;
+    if (month >= 3 && month <= 5) {
+        return {
+            key: 'spring',
+            label: '花气上升',
+            copy: '散步、咖啡和新鲜日常，适合被排成一页柔软的春天切片。'
+        };
+    }
+    if (month >= 6 && month <= 8) {
+        return {
+            key: 'summer',
+            label: '热感存档',
+            copy: '海风、live、晚霞和强光下的瞬间，会让这一页有更直接的生命力。'
+        };
+    }
+    if (month >= 9 && month <= 11) {
+        return {
+            key: 'autumn',
+            label: '琥珀颗粒',
+            copy: '暖色、街灯和出行片段，会让这个月更像一本有颗粒感的小杂志。'
+        };
+    }
+    if (month === 12 || month === 1 || month === 2) {
+        return {
+            key: 'winter',
+            label: '夜雾留白',
+            copy: '夜景、房间光线和安静时刻，很适合被留在更克制的冬日底片里。'
+        };
+    }
+    return {
+        key: 'archive',
+        label: '归档页',
+        copy: '这一页还没有明确的时间气候，但它已经在你的相册里占好了位置。'
+    };
+}
+
+function isRecentUploadedPhoto(photoId) {
+    return recentUploadedPhotoIds.has(photoId);
+}
+
+function markRecentlyUploadedPhotos(photos) {
+    const nextIds = Array.isArray(photos) ? photos.map((photo) => photo.id).filter(Boolean) : [];
+    if (nextIds.length === 0) return;
+
+    nextIds.forEach((photoId) => recentUploadedPhotoIds.add(photoId));
+    document.body.classList.add('upload-celebration');
+    dom.gallery.classList.add('upload-celebration');
+
+    if (recentUploadCleanupTimer) clearTimeout(recentUploadCleanupTimer);
+    recentUploadCleanupTimer = window.setTimeout(() => {
+        recentUploadedPhotoIds.clear();
+        document.body.classList.remove('upload-celebration');
+        dom.gallery.classList.remove('upload-celebration');
+        renderGallery();
+    }, RECENT_UPLOAD_HIGHLIGHT_MS);
+}
 function getCustomGroups() {
     return [...new Set(getAllPhotos().map((photo) => getPhotoGroupName(photo)).filter(Boolean))];
 }
@@ -399,7 +461,7 @@ function renderMemoryBoard() {
 
     dom.memoryBoard.hidden = false;
     renderMemoryStrip(dom.memoryRecentList, recentPhotos, '上传几张新照片后，这里会自动更新。');
-    renderMemoryStrip(dom.memoryTodayList, todayPhotos, '今年的今天还没有找到往年回忆。');
+    renderMemoryStrip(dom.memoryTodayList, todayPhotos, '今年的今天暂时还没有刷出往年存下的照片。');
 }
 
 function scrollGalleryIntoView() {
@@ -440,9 +502,9 @@ function buildRitualCards() {
         if ((highlightedStoryPhoto.tags || []).length === 0) missingPieces.push('几个关键词');
         cards.push({
             kicker: '故事模式',
-            title: missingPieces.length > 0 ? '把这张照片补成完整故事' : '打开一段已经写好的家庭片段',
+            title: missingPieces.length > 0 ? '把这张照片补成完整记录' : '打开一段已经写好的照片片段',
             desc: missingPieces.length > 0
-                ? `这张照片还差 ${missingPieces.join('和')}，点开后就能继续把它写进回忆里。`
+                ? `这张照片还差 ${missingPieces.join('和')}，点开后就能继续把它补完整。`
                 : '这张照片已经有了文字和线索，适合继续看看评论、表情和前后片段。',
             action: 'photo',
             photoId: highlightedStoryPhoto.id,
@@ -452,26 +514,26 @@ function buildRitualCards() {
 
     if (todayPhotos[0]) {
         cards.push({
-            kicker: '家庭仪式感',
-            title: '把往年今日再一起看一遍',
-            desc: `今天刚好有 ${todayPhotos.length} 张往年今日照片，适合一家人重新翻到同一天的回忆。`,
+            kicker: '今日灵感卡',
+            title: '把往年今日再刷一遍',
+            desc: `今天刚好有 ${todayPhotos.length} 张往年今日照片，适合重新翻到同一天留下的画面。`,
             action: 'photo',
             photoId: todayPhotos[0].id,
             buttonLabel: '打开往年今日'
         });
     } else if (favorites[0]) {
         cards.push({
-            kicker: '家庭仪式感',
-            title: '今晚翻翻被特别偏爱的照片',
-            desc: `你们已经收藏了 ${favorites.length} 张照片，切到收藏视图就能快速回看那些最常想起的时刻。`,
+            kicker: '今日灵感卡',
+            title: '翻翻那些你特别偏爱的照片',
+            desc: `你已经收藏了 ${favorites.length} 张照片，切到收藏视图就能快速回看最常点开的那些瞬间。`,
             action: 'favorites',
             buttonLabel: '查看收藏'
         });
     } else if (oldestPhoto) {
         cards.push({
-            kicker: '家庭仪式感',
+            kicker: '今日灵感卡',
             title: '回到第一张被放进相册的照片',
-            desc: '偶尔从最早的一页重新开始翻，会更容易看见这个家的时间感是怎么慢慢长出来的。',
+            desc: '偶尔从最早的一页重新开始翻，会更容易看见自己的照片流是怎么慢慢长出来的。',
             action: 'photo',
             photoId: oldestPhoto.id,
             buttonLabel: '回到最开始'
@@ -498,10 +560,10 @@ function renderRitualBoard() {
     dom.ritualBoard.innerHTML = `
         <div class="ritual-board-head">
             <div>
-                <span class="ritual-eyebrow">家庭仪式感</span>
-                <h2>让相册不只是存放照片，也成为一家人会期待的小动作</h2>
+                <span class="ritual-eyebrow">今日灵感卡</span>
+                <h2>让相册不只是存照片，也变成你会反复打开的小空间</h2>
             </div>
-            <p>翻一页时间线、补一句故事、重看一张偏爱的照片，回忆就会慢慢长出属于这个家的节奏。</p>
+            <p>翻一页时间线、补一句描述、重看一张偏爱的照片，内容会慢慢长出只属于你的节奏。</p>
         </div>
         <div class="ritual-grid">
             ${cards.map((card) => `
@@ -551,25 +613,27 @@ function renderTimelineGallery(visibleIndexMap) {
         const featured = group.items[0];
         const featuredIndex = visibleIndexMap.get(featured.id);
         const featuredOpenable = !featured.isLocalPreview && typeof featuredIndex === 'number';
-        const featuredTitle = featured.caption || featured.name || '这一页回忆';
+        const featuredTitle = featured.caption || featured.name || '这一页记录';
         const featuredDate = formatUploadDate(featured.uploadTime) || '还没有记录日期';
         const topTags = getTopTags(group.items, 3);
         const favoriteCount = group.items.filter((photo) => photo.favorited).length;
         const storyCount = getStoryPhotoCount(group.items);
         const groupName = getPhotoGroupName(featured);
+        const mood = getMonthMoodMeta(featured.uploadTime);
+        const hasRecentUpload = group.items.some((photo) => isRecentUploadedPhoto(photo.id));
         const thumbs = group.items.slice(1, TIMELINE_PREVIEW_LIMIT + 1).map((photo) => {
             const thumbIndex = visibleIndexMap.get(photo.id);
             const thumbOpenable = !photo.isLocalPreview && typeof thumbIndex === 'number';
             return `
-                <button class="timeline-thumb${thumbOpenable ? '' : ' is-disabled'}" type="button" ${thumbOpenable ? `data-timeline-index="${thumbIndex}"` : 'disabled'}>
+                <button class="timeline-thumb${thumbOpenable ? '' : ' is-disabled'}${isRecentUploadedPhoto(photo.id) ? ' recent-upload' : ''}" type="button" ${thumbOpenable ? `data-timeline-index="${thumbIndex}"` : 'disabled'}>
                     <img src="${escapeHtml(photo.thumbSrc || photo.src || GALLERY_IMAGE_PLACEHOLDER)}" alt="${escapeHtml(photo.name || '时间线照片')}" loading="lazy">
-                    <span class="timeline-thumb-label">${escapeHtml(photo.caption || photo.name || '还没写故事')}</span>
+                    <span class="timeline-thumb-label">${escapeHtml(photo.caption || photo.name || '还没补描述')}</span>
                 </button>
             `;
         }).join('');
 
         return `
-            <article class="timeline-block">
+            <article class="timeline-block${hasRecentUpload ? ' has-recent-upload' : ''}" data-month-mood="${escapeHtml(mood.key)}">
                 <div class="timeline-rail">
                     <span class="timeline-year">${escapeHtml(group.yearLabel)}</span>
                     <span class="timeline-dot"></span>
@@ -583,8 +647,12 @@ function renderTimelineGallery(visibleIndexMap) {
                         <span class="timeline-count">${group.items.length} 张</span>
                     </div>
                     <p class="timeline-summary">${escapeHtml(buildTimelineSummary(group))}</p>
+                    <div class="timeline-mood-line">
+                        <span class="timeline-mood-pill">${escapeHtml(mood.label)}</span>
+                        <p>${escapeHtml(mood.copy)}</p>
+                    </div>
                     <div class="timeline-feature">
-                        <button class="timeline-feature-media${featuredOpenable ? '' : ' is-disabled'}" type="button" ${featuredOpenable ? `data-timeline-index="${featuredIndex}"` : 'disabled'}>
+                        <button class="timeline-feature-media${featuredOpenable ? '' : ' is-disabled'}${isRecentUploadedPhoto(featured.id) ? ' recent-upload' : ''}" type="button" ${featuredOpenable ? `data-timeline-index="${featuredIndex}"` : 'disabled'}>
                             <img src="${escapeHtml(featured.thumbSrc || featured.src || GALLERY_IMAGE_PLACEHOLDER)}" alt="${escapeHtml(featured.name || '时间线封面')}" loading="lazy">
                             ${featured.favorited ? '<span class="timeline-photo-badge">收藏</span>' : ''}
                             ${featured.isLocalPreview ? '<span class="timeline-photo-badge upload">上传中</span>' : ''}
@@ -593,17 +661,17 @@ function renderTimelineGallery(visibleIndexMap) {
                             <div class="timeline-feature-meta">
                                 <span>${escapeHtml(featuredDate)}</span>
                                 ${groupName ? `<span>分组 · ${escapeHtml(groupName)}</span>` : ''}
-                                ${storyCount > 0 ? `<span>${storyCount} 张有故事</span>` : ''}
+                                ${storyCount > 0 ? `<span>${storyCount} 张有描述</span>` : ''}
                                 ${favoriteCount > 0 ? `<span>${favoriteCount} 张收藏</span>` : ''}
                             </div>
                             <div class="timeline-chip-row">
                                 ${topTags.map((tag) => `<span class="timeline-chip">#${escapeHtml(tag)}</span>`).join('')}
                             </div>
-                            ${featuredOpenable ? `<button class="timeline-open-btn" type="button" data-timeline-index="${featuredIndex}">打开这一页回忆</button>` : '<span class="timeline-open-tip">上传完成后会出现在正式时间线上</span>'}
+                            ${featuredOpenable ? `<button class="timeline-open-btn" type="button" data-timeline-index="${featuredIndex}">打开这一页记录</button>` : '<span class="timeline-open-tip">上传完成后会出现在正式时间线上</span>'}
                         </div>
                     </div>
                     <div class="timeline-thumbs${thumbs ? '' : ' is-empty'}">
-                        ${thumbs || '<div class="timeline-thumb-empty">这个月暂时只有这一页，等再添几张照片，这里会慢慢长成一条更完整的家庭时间线。</div>'}
+                        ${thumbs || '<div class="timeline-thumb-empty">这个月暂时只有这一页，等再添几张照片，这里会慢慢长成一条更完整的个人时间线。</div>'}
                     </div>
                 </div>
             </article>
@@ -647,20 +715,20 @@ function renderGroupActions() {
 
 function updateSearchHint(filteredCount) {
     const tips = [];
-    if (state.activeTagFilter) tips.push(`正在按标签 #${state.activeTagFilter} 精确筛选，共 ${filteredCount} 张。`);
-    if (state.searchKeyword.trim()) tips.push(`正在搜索“${state.searchKeyword.trim()}”，结果会按分组展示，并已禁用拖拽排序。`);
+    if (state.activeTagFilter) tips.push(`正在按标签 #${state.activeTagFilter} 精准筛图，共 ${filteredCount} 张。`);
+    if (state.searchKeyword.trim()) tips.push(`正在搜索“${state.searchKeyword.trim()}”，结果会按分组展开，并已关闭拖拽排序。`);
     if (!state.searchKeyword.trim() && !state.activeTagFilter) {
         if (state.localUploadPreviews.length > 0) tips.push('新上传的照片会先以本地预览显示，上传完成后自动替换成正式图片。上传期间已禁用拖拽排序。');
         else if (state.batchMode) tips.push('批量模式下已禁用拖拽排序，避免和多选操作冲突。');
-        else if (state.activeGroupName !== DEFAULT_GROUP_NAME) tips.push(`当前正在查看“${state.activeGroupName}”分组。若该分组照片全部删除，导航里会自动移除它。`);
+        else if (state.activeGroupName !== DEFAULT_GROUP_NAME) tips.push(`当前正在看“${state.activeGroupName}”分组。如果这里的照片都被删掉，导航里也会自动消失。`);
         else if (state.reorderSaving) tips.push('正在保存新的照片顺序...');
         else {
-            tips.push(`可以直接搜索分组名、照片名称、描述或标签。当前共 ${filteredCount} 张。`);
-            tips.push('点击卡片上的标签可直接筛选。');
+            tips.push(`可以直接搜分组、照片名、描述、标签或月份。当前共 ${filteredCount} 张。`);
+            tips.push('点卡片上的标签就能一键继续筛。');
             if (canDragReorder()) tips.push('全部图片下支持鼠标拖动排序。');
         }
     }
-    if (state.viewMode === 'timeline') tips.push('已切换到时间线视图，当前结果会按月份归档展示，并暂停拖拽排序。');
+    if (state.viewMode === 'timeline') tips.push('已切到时间线视图，当前结果会按月份归档展示，并暂停拖拽排序。');
     if (state.sortMode !== 'custom') tips.push(`当前按“${getSortLabel()}”排序。`);
     if (state.contentFilter === 'favorites') tips.push('已切换到收藏视图，取消星标后会自动从这里移出。');
     else if (state.contentFilter !== 'all') tips.push(`已启用“${getContentFilterLabel()}”。`);
@@ -880,6 +948,7 @@ export function prependUploadedPhotos(photos) {
     const normalized = photos.map((photo, index) => ({ likes: 0, commentsCount: 0, reactions: {}, uploadTime: photo.uploadTime || baseTime + index, ...photo }));
     const newIds = new Set(normalized.map((photo) => photo.id));
     setPhotos([...normalized, ...state.photos.filter((photo) => !newIds.has(photo.id))]);
+    markRecentlyUploadedPhotos(normalized);
     renderGallery();
 }
 
@@ -1066,6 +1135,7 @@ export function renderGallery() {
             const card = document.createElement('div');
             card.className = 'photo-card';
             if (photo.isLocalPreview) card.classList.add('upload-preview');
+            if (isRecentUploadedPhoto(photo.id)) card.classList.add('recent-upload');
             if (state.batchMode && state.selectedIds.has(photo.id)) card.classList.add('selected');
             if (dragEnabled && !photo.isLocalPreview) {
                 card.classList.add('draggable-card');
@@ -1090,6 +1160,16 @@ export function renderGallery() {
                 img.setAttribute('fetchpriority', visibleIndex < 4 ? 'high' : 'low');
                 img.classList.add('lazy');
             }
+
+            const hoverMeta = document.createElement('div');
+            hoverMeta.className = 'card-hover-meta';
+            hoverMeta.innerHTML = `
+                <span class="card-date-badge">${escapeHtml(formatUploadDate(photo.uploadTime) || '未记录日期')}</span>
+                <span class="card-file-badge">${escapeHtml(photo.name || '未命名照片')}</span>
+            `;
+
+            const cardFrame = document.createElement('span');
+            cardFrame.className = 'card-frame';
 
             const caption = photo.caption ? `<div class="card-caption">${highlightText(photo.caption)}</div>` : '';
             const tags = (photo.tags || []).slice(0, 3).map((tag) => buildFilterChip(`#${highlightText(tag)}`, 'data-filter-tag', tag, normalizeCompare(tag) === normalizeCompare(state.activeTagFilter))).join('');
@@ -1130,7 +1210,9 @@ export function renderGallery() {
                 });
                 card.appendChild(favoriteBtn);
             }
+            card.appendChild(hoverMeta);
             card.appendChild(img);
+            card.appendChild(cardFrame);
             card.appendChild(cardInfo);
 
             if (dragEnabled && !photo.isLocalPreview) {

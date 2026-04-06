@@ -3,7 +3,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const multer = require('multer');
-const { DELETE_PASSWORD, uploadDir } = require('../config');
+const { DELETE_PASSWORD, uploadDir, thumbsDir } = require('../config');
 const {
     loadPhotoData,
     savePhotoData,
@@ -12,12 +12,87 @@ const {
     normalizeTags,
     getPhotoMeta,
     getPhotoDetails,
+    getThumbnailFilename,
+    getThumbnailPath,
     getThumbnailSrc,
     ensurePhotoOrders,
-    sortPhotos
+    sortPhotos,
+    isImageFilename
 } = require('../data/photoStore');
 const { ensureAndPersistThumbnails } = require('../services/thumbnailService');
 const { loadGroupData, saveGroupData, syncGroupDataWithPhotos } = require('../data/groupStore');
+
+const WINDOWS_RESERVED_FILENAME_PATTERN = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+function sanitizePhotoBaseName(rawName) {
+    const parsed = path.parse(String(rawName || '').trim());
+    const withoutExtension = parsed.name || parsed.base || '';
+    const sanitized = withoutExtension
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[. ]+$/g, '')
+        .trim()
+        .slice(0, 80);
+
+    if (!sanitized) return 'photo';
+    return WINDOWS_RESERVED_FILENAME_PATTERN.test(sanitized) ? `${sanitized}-file` : sanitized;
+}
+
+function buildUniquePhotoFilename(rawName, extension, existingFileNames, currentPhotoId = '') {
+    const normalizedExtension = (extension || path.extname(currentPhotoId) || '.jpg').toLowerCase();
+    const baseSeed = sanitizePhotoBaseName(rawName);
+    const occupiedBaseNames = new Set(
+        existingFileNames
+            .filter((fileName) => fileName !== currentPhotoId)
+            .map((fileName) => path.parse(fileName).name.toLowerCase())
+    );
+
+    let candidateBase = baseSeed;
+    let suffix = 2;
+    while (occupiedBaseNames.has(candidateBase.toLowerCase())) {
+        candidateBase = `${baseSeed}-${suffix}`;
+        suffix += 1;
+    }
+
+    return `${candidateBase}${normalizedExtension}`;
+}
+
+function listPhotoFilesSync() {
+    if (!fs.existsSync(uploadDir)) return [];
+    return fs.readdirSync(uploadDir).filter((fileName) => isImageFilename(fileName));
+}
+
+function updateGroupCoverPhotoIds(groupData, oldPhotoId, nextPhotoId) {
+    return Object.fromEntries(
+        Object.entries(groupData).map(([groupName, entry]) => [
+            groupName,
+            {
+                ...entry,
+                coverPhotoId: entry?.coverPhotoId === oldPhotoId ? nextPhotoId : (entry?.coverPhotoId || '')
+            }
+        ])
+    );
+}
+
+function buildPhotoResponse(photoId, photoData, groupData, uploadTime) {
+    const meta = getPhotoMeta(photoId, photoData);
+    return {
+        id: photoId,
+        src: `/uploads/${photoId}`,
+        thumbSrc: getThumbnailSrc(photoId, photoData[photoId]) || `/uploads/${photoId}`,
+        name: path.parse(photoId).name,
+        uploadTime,
+        likes: meta.likes,
+        commentsCount: meta.commentsCount,
+        reactions: meta.reactions,
+        caption: meta.caption,
+        favorited: meta.favorited,
+        tags: meta.tags,
+        order: meta.order,
+        groupName: meta.groupName,
+        groupCoverPhotoId: meta.groupName ? (groupData[meta.groupName]?.coverPhotoId || '') : ''
+    };
+}
 
 function createPhotosRouter() {
     const router = express.Router();
@@ -25,7 +100,10 @@ function createPhotosRouter() {
     const storage = multer.diskStorage({
         destination: (req, file, cb) => cb(null, uploadDir),
         filename: (req, file, cb) => {
-            const uniqueName = Date.now() + '-' + Math.random().toString(36).substr(2, 9) + path.extname(file.originalname);
+            if (!req._reservedUploadNames) req._reservedUploadNames = new Set();
+            const existingFileNames = [...listPhotoFilesSync(), ...req._reservedUploadNames];
+            const uniqueName = buildUniquePhotoFilename(file.originalname, path.extname(file.originalname), existingFileNames);
+            req._reservedUploadNames.add(uniqueName);
             cb(null, uniqueName);
         }
     });
@@ -51,23 +129,7 @@ function createPhotosRouter() {
             const statsMap = new Map(statsEntries);
             const photos = files.map((file) => {
                 const stats = statsMap.get(file);
-                const meta = getPhotoMeta(file, photoData);
-                return {
-                    id: file,
-                    src: `/uploads/${file}`,
-                    thumbSrc: getThumbnailSrc(file, photoData[file]) || `/uploads/${file}`,
-                    name: file,
-                    uploadTime: stats.mtimeMs,
-                    likes: meta.likes,
-                    commentsCount: meta.commentsCount,
-                    reactions: meta.reactions,
-                    caption: meta.caption,
-                    favorited: meta.favorited,
-                    tags: meta.tags,
-                    order: meta.order,
-                    groupName: meta.groupName,
-                    groupCoverPhotoId: meta.groupName ? (groupData[meta.groupName]?.coverPhotoId || '') : ''
-                };
+                return buildPhotoResponse(file, photoData, groupData, stats.mtimeMs);
             });
 
             const orderChanged = ensurePhotoOrders(photos, photoData);
@@ -110,6 +172,7 @@ function createPhotosRouter() {
             id: photoId,
             src: `/uploads/${photoId}`,
             thumbSrc: getThumbnailSrc(photoId, photoData[photoId]) || `/uploads/${photoId}`,
+            name: path.parse(photoId).name,
             likes: details.likes,
             comments: details.comments,
             reactions: details.reactions,
@@ -157,11 +220,11 @@ function createPhotosRouter() {
         const filePath = path.join(uploadDir, photoId);
 
         if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: '\u56fe\u7247\u4e0d\u5b58\u5728' });
+            return res.status(404).json({ error: '图片不存在' });
         }
 
         if (typeof req.body?.favorited !== 'boolean') {
-            return res.status(400).json({ error: '\u6536\u85cf\u72b6\u6001\u65e0\u6548' });
+            return res.status(400).json({ error: '收藏状态无效' });
         }
 
         const photoData = loadPhotoData();
@@ -172,7 +235,7 @@ function createPhotosRouter() {
         res.json({ success: true, photoId, favorited: entry.favorited });
     });
 
-    router.patch('/photos/:id', (req, res) => {
+    router.patch('/photos/:id', async (req, res) => {
         const photoId = req.params.id;
         const filePath = path.join(uploadDir, photoId);
 
@@ -183,8 +246,9 @@ function createPhotosRouter() {
         const body = req.body || {};
         const hasCaption = Object.prototype.hasOwnProperty.call(body, 'caption');
         const hasTags = Object.prototype.hasOwnProperty.call(body, 'tags');
+        const hasRename = Object.prototype.hasOwnProperty.call(body, 'renameTo');
 
-        if (!hasCaption && !hasTags) {
+        if (!hasCaption && !hasTags && !hasRename) {
             return res.status(400).json({ error: '没有可更新的内容' });
         }
 
@@ -192,14 +256,79 @@ function createPhotosRouter() {
         const entry = normalizePhotoEntry(photoData[photoId]);
         const caption = hasCaption ? String(body.caption || '').trim().slice(0, 80) : entry.caption;
         const tags = hasTags ? normalizeTags(body.tags).slice(0, 12) : entry.tags;
+        const existingFiles = await listPhotoFiles();
+        const nextPhotoId = hasRename
+            ? buildUniquePhotoFilename(body.renameTo, path.extname(photoId), existingFiles, photoId)
+            : photoId;
+        const didRename = nextPhotoId !== photoId;
+        const nextFilePath = path.join(uploadDir, nextPhotoId);
+        const nextThumbnailFilename = `${path.parse(nextPhotoId).name}.jpg`;
+        const currentThumbnailPath = getThumbnailPath(photoId, entry);
+        const nextThumbnailPath = path.join(thumbsDir, nextThumbnailFilename);
 
-        photoData[photoId] = {
-            ...entry,
-            caption,
-            tags
-        };
-        savePhotoData(photoData);
-        res.json({ success: true, photoId, caption, tags });
+        let nextPhotoData = { ...photoData };
+        let nextGroupData = loadGroupData();
+        let renamedMainFile = false;
+        let renamedThumbnail = false;
+
+        try {
+            if (didRename) {
+                if (fs.existsSync(nextFilePath)) {
+                    return res.status(400).json({ error: '这个名字已经被用了，请换一个试试' });
+                }
+                fs.renameSync(filePath, nextFilePath);
+                renamedMainFile = true;
+
+                if (fs.existsSync(currentThumbnailPath) && currentThumbnailPath !== nextThumbnailPath) {
+                    if (fs.existsSync(nextThumbnailPath)) {
+                        throw new Error('目标缩略图文件已存在');
+                    }
+                    fs.renameSync(currentThumbnailPath, nextThumbnailPath);
+                    renamedThumbnail = true;
+                }
+
+                delete nextPhotoData[photoId];
+                nextGroupData = updateGroupCoverPhotoIds(nextGroupData, photoId, nextPhotoId);
+            }
+
+            nextPhotoData[nextPhotoId] = {
+                ...entry,
+                caption,
+                tags,
+                thumbnail: nextThumbnailFilename
+            };
+            nextGroupData = syncGroupDataWithPhotos(nextGroupData, nextPhotoData);
+
+            savePhotoData(nextPhotoData);
+            saveGroupData(nextGroupData);
+
+            const resultEntry = normalizePhotoEntry(nextPhotoData[nextPhotoId]);
+            res.json({
+                success: true,
+                photoId: nextPhotoId,
+                oldPhotoId: photoId,
+                src: `/uploads/${nextPhotoId}`,
+                thumbSrc: getThumbnailSrc(nextPhotoId, resultEntry) || `/uploads/${nextPhotoId}`,
+                name: path.parse(nextPhotoId).name,
+                caption: resultEntry.caption,
+                tags: resultEntry.tags,
+                groupName: resultEntry.groupName,
+                groupCoverPhotoId: resultEntry.groupName ? (nextGroupData[resultEntry.groupName]?.coverPhotoId || '') : ''
+            });
+        } catch (error) {
+            try {
+                if (renamedThumbnail && fs.existsSync(nextThumbnailPath) && !fs.existsSync(currentThumbnailPath)) {
+                    fs.renameSync(nextThumbnailPath, currentThumbnailPath);
+                }
+                if (renamedMainFile && fs.existsSync(nextFilePath) && !fs.existsSync(filePath)) {
+                    fs.renameSync(nextFilePath, filePath);
+                }
+            } catch (rollbackError) {
+                console.error('回滚重命名失败:', rollbackError);
+            }
+            console.error('更新图片信息失败:', error);
+            res.status(500).json({ error: error.message || '更新图片信息失败，请稍后重试' });
+        }
     });
 
     router.post('/upload', upload.array('photos', 10), async (req, res) => {
@@ -244,7 +373,7 @@ function createPhotosRouter() {
                 id: file.filename,
                 src: `/uploads/${file.filename}`,
                 thumbSrc: getThumbnailSrc(file.filename, photoData[file.filename]) || `/uploads/${file.filename}`,
-                name: file.originalname,
+                name: path.parse(file.filename).name,
                 caption,
                 tags,
                 order: startOrder + index,
@@ -310,7 +439,7 @@ function createPhotosRouter() {
             const thumbSrc = getThumbnailSrc(photoId, photoData[photoId]);
             if (thumbSrc) {
                 const thumbFileName = thumbSrc.replace('/thumbnails/', '');
-                const thumbPath = path.join(require('../config').thumbsDir, thumbFileName);
+                const thumbPath = path.join(thumbsDir, thumbFileName);
                 if (fs.existsSync(thumbPath)) {
                     fs.unlinkSync(thumbPath);
                 }

@@ -52,10 +52,10 @@
                 <span class="header-emoji float-4">🎞️</span>
                 <span class="header-emoji float-5">🌟</span>
             </div>
-            <div class="header-kicker" id="headerKicker">把寻常日子装订成家的回忆册</div>
+            <div class="header-kicker" id="headerKicker">把喜欢的瞬间，都收进自己的照片宇宙</div>
             <h1>我的相册</h1>
             <p class="subtitle" id="dynamicSubtitle">记录美好瞬间</p>
-            <p class="header-description" id="headerDescription">和家人一起上传、留言，把重要的小日子慢慢收进同一本相册。</p>
+            <p class="header-description" id="headerDescription">随手存图、写下片段、慢慢整理，把日常和灵感都留在这本只属于你的相册里。</p>
             <div class="header-actions">
                 <span class="festival-badge" id="festivalBadge">节日推荐</span>
                 <button class="recommend-theme-btn" id="recommendThemeBtn" type="button">一键切换主题</button>
@@ -102,7 +102,7 @@
 
         <div class="upload-meta-panel">
             <input type="text" id="captionInput" placeholder="给这一组照片写一句描述，例如：外婆生日的小聚会" maxlength="80">
-            <input type="text" id="tagsInput" placeholder="标签用逗号分开，例如：生日,家宴,春天" maxlength="60">
+            <input type="text" id="tagsInput" placeholder="标签用逗号分开，例如：旅行,live,春日穿搭" maxlength="60">
             <select id="uploadGroupSelect" class="upload-group-select" aria-label="上传时加入分组">
                 <option value="">不加入分组</option>
             </select>
@@ -136,7 +136,7 @@
                 <button class="view-toggle-btn active" id="gridViewBtn" type="button" data-view-mode="grid">网格</button>
                 <button class="view-toggle-btn" id="timelineViewBtn" type="button" data-view-mode="timeline">时间线</button>
             </div>
-            <div class="search-hint" id="searchHint">&#21487;&#20197;&#25628;&#32034;&#20998;&#32452;&#12289;&#25991;&#20214;&#21517;&#12289;&#25551;&#36848;&#25110;&#26631;&#31614;&#65292;&#20063;&#21487;&#20197;&#30452;&#25509;&#28857;&#20987;&#26631;&#31614;&#24555;&#36895;&#31579;&#36873;&#12290;</div>
+            <div class="search-hint" id="searchHint">&#21487;&#20197;&#25628;&#32034;&#20998;&#32452;&#12289;&#25991;&#20214;&#21517;&#12289;&#25551;&#36848;&#12289;&#26631;&#31614;&#25110;&#26376;&#20221;&#65292;&#20063;&#21487;&#20197;&#30452;&#25509;&#28857;&#20987;&#26631;&#31614;&#24555;&#36895;&#31579;&#36873;&#12290;</div>
             <div class="gallery-status" id="galleryStatus" hidden></div>
         </div>
 
@@ -255,8 +255,8 @@
     <!-- 昵称设置弹窗 -->
     <div class="nickname-modal" id="nicknameModal">
         <div class="nickname-box">
-            <div class="nickname-title">👋 欢迎来到相册</div>
-            <div class="nickname-desc">请设置你的昵称，方便大家认识你</div>
+            <div class="nickname-title">👋 欢迎来到你的相册</div>
+            <div class="nickname-desc">先设置一个昵称，之后留言和互动都会显示这个名字</div>
             <input type="text" id="nicknameInput" placeholder="输入昵称（2-10个字）" maxlength="10" autocomplete="off">
             <div class="nickname-error" id="nicknameError"></div>
             <button id="nicknameConfirmBtn" class="nickname-confirm">进入相册</button>

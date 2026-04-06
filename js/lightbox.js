@@ -8,6 +8,7 @@ import { showStatusNotice } from './feedback.js';
 
 let renderGalleryHandler = () => {};
 let openSingleDeleteModalHandler = () => {};
+let loadPhotosHandler = async () => {};
 let touchStartPoint = null;
 
 function updateNavBtns() {
@@ -62,13 +63,13 @@ function buildStoryNarration(photo) {
     const reactionCount = getStoryReactionCount(photo);
     const pieces = [];
 
-    pieces.push(groupName ? `${dateLabel}，这张照片被收进了“${groupName}”这一册。` : `${dateLabel}，这张照片被留在了家庭相册里。`);
+    pieces.push(groupName ? `${dateLabel}，这张照片被收进了“${groupName}”这一册。` : `${dateLabel}，这张照片被留在了你的相册里。`);
     if (String(photo.caption || '').trim()) pieces.push(`它记下的是：${photo.caption}。`);
-    else pieces.push('它还没有写下文字，现在正适合补上一句当时的心情。');
-    if (tags.length > 0) pieces.push(`这段回忆的关键词是 ${tags.join('、')}。`);
-    if (commentCount > 0 || reactionCount > 0) pieces.push(`家人已经留下 ${commentCount} 条评论和 ${reactionCount} 次表情回应。`);
-    else pieces.push('还没有人留言或回应，也许下一句评论就会让它更像一个完整故事。');
-    if (photo.favorited) pieces.push('它已经被特别收藏，说明这不是一张会被轻易翻过去的照片。');
+    else pieces.push('它还没有写下文字，现在正适合补上一句当时的状态。');
+    if (tags.length > 0) pieces.push(`这张图的关键词是 ${tags.join('、')}。`);
+    if (commentCount > 0 || reactionCount > 0) pieces.push(`这里已经留下 ${commentCount} 条评论和 ${reactionCount} 次表情回应。`);
+    else pieces.push('这里还没有留言或回应，也许下一句评论就会让它更像一个完整片段。');
+    if (photo.favorited) pieces.push('它已经被特别收藏，说明这不是一张会被轻易划过去的照片。');
     return pieces.join('');
 }
 
@@ -78,7 +79,7 @@ function buildStorySequenceCard(label, photo, index) {
             <div class="story-sequence-card is-empty">
                 <span class="story-sequence-label">${escapeHtml(label)}</span>
                 <strong>这一段暂时还没有更多照片</strong>
-                <p>继续往相册里添新照片，故事线会在这里慢慢接长。</p>
+                <p>继续往相册里添新照片，这条内容线会在这里慢慢接长。</p>
             </div>
         `;
     }
@@ -88,7 +89,7 @@ function buildStorySequenceCard(label, photo, index) {
             <div class="story-sequence-cover">
                 <img src="${escapeHtml(photo.thumbSrc || photo.src || '')}" alt="${escapeHtml(photo.name || '相邻照片')}" loading="lazy">
             </div>
-            <strong>${escapeHtml(photo.caption || photo.name || '还没写故事')}</strong>
+            <strong>${escapeHtml(photo.caption || photo.name || '还没补描述')}</strong>
             <p>${escapeHtml(formatUploadDate(photo.uploadTime) || '还没有记录日期')}</p>
         </button>
     `;
@@ -124,7 +125,7 @@ function renderLightboxStory(photo) {
             </div>
             <div class="story-progress">
                 <div class="story-progress-head">
-                    <span>故事完整度</span>
+                    <span>内容完整度</span>
                     <strong>${completionScore}%</strong>
                 </div>
                 <div class="story-progress-track"><span style="width:${completionScore}%"></span></div>
@@ -135,9 +136,9 @@ function renderLightboxStory(photo) {
                 <div class="story-metric"><span>回应</span><strong>${reactionCount}</strong></div>
                 <div class="story-metric"><span>收藏</span><strong>${photo.favorited ? '已收起' : '未标记'}</strong></div>
             </div>
-            ${photo.caption ? `<div class="story-caption">${escapeHtml(photo.caption)}</div>` : '<div class="story-caption empty">这张照片还没有简介，点右上角按钮就可以补上一句故事。</div>'}
+            ${photo.caption ? `<div class="story-caption">${escapeHtml(photo.caption)}</div>` : '<div class="story-caption empty">这张照片还没有简介，点右上角按钮就可以补上一句描述。</div>'}
             <div class="story-voice">
-                <span class="story-voice-kicker">家庭旁白</span>
+                <span class="story-voice-kicker">内容旁白</span>
                 <p>${escapeHtml(buildStoryNarration(photo))}</p>
             </div>
             ${groupBlock}
@@ -180,6 +181,12 @@ async function promptEditPhotoDetails() {
     const photo = getCurrentPhoto();
     if (!photo) return;
 
+    const rawName = window.prompt(
+        '想给这张照片换个名字吗？这里会直接修改磁盘里的真实文件名，后缀会自动保留；留空表示保持当前名字。',
+        photo.name || ''
+    );
+    if (rawName === null) return;
+
     const rawCaption = window.prompt(
         photo.caption ? '\u4fee\u6539\u8fd9\u5f20\u7167\u7247\u7684\u7b80\u4ecb\uff0c\u7559\u7a7a\u53ef\u4ee5\u6e05\u9664\u3002' : '\u7ed9\u8fd9\u5f20\u7167\u7247\u8865\u4e00\u53e5\u7b80\u4ecb\uff0c\u7559\u7a7a\u8868\u793a\u6682\u65f6\u4e0d\u5199\u3002',
         photo.caption || ''
@@ -192,20 +199,44 @@ async function promptEditPhotoDetails() {
     );
     if (rawTags === null) return;
 
+    const renameCandidate = rawName.trim().replace(/\.[^.]+$/u, '').trim();
     const caption = rawCaption.trim().slice(0, 80);
     const tags = normalizeTags(rawTags).slice(0, 12);
+    const currentName = String(photo.name || '').trim();
+    const shouldRename = Boolean(renameCandidate) && renameCandidate !== currentName;
     const sameCaption = caption === (photo.caption || '');
     const sameTags = JSON.stringify(tags) === JSON.stringify(normalizeTags(photo.tags));
-    if (sameCaption && sameTags) {
+    if (!shouldRename && sameCaption && sameTags) {
         showStatusNotice('\u7167\u7247\u4fe1\u606f\u6ca1\u6709\u53d8\u5316', { tone: 'info', duration: 1800 });
         return;
     }
 
     try {
-        const result = await updatePhotoDetails(photo.id, { caption, tags });
+        const payload = { caption, tags };
+        if (shouldRename) payload.renameTo = renameCandidate;
+
+        const result = await updatePhotoDetails(photo.id, payload);
+
+        if (result.photoId && result.photoId !== photo.id) {
+            await loadPhotosHandler();
+            const nextIndex = state.visiblePhotos.findIndex((item) => item.id === result.photoId);
+            if (nextIndex === -1) {
+                closeLightbox();
+                showStatusNotice('文件名已更新，但这张照片已经不在当前筛选结果里。', { tone: 'success' });
+                return;
+            }
+            await openLightbox(nextIndex);
+            showStatusNotice('\u7167\u7247\u6587\u4ef6\u540d\u5df2\u66f4\u65b0', { tone: 'success' });
+            return;
+        }
+
         updatePhotoInStore(photo.id, {
+            name: result.name || photo.name || '',
             caption: result.caption || '',
-            tags: normalizeTags(result.tags)
+            tags: normalizeTags(result.tags),
+            thumbSrc: result.thumbSrc || photo.thumbSrc || photo.src,
+            groupName: result.groupName || photo.groupName || '',
+            groupCoverPhotoId: result.groupCoverPhotoId || photo.groupCoverPhotoId || ''
         });
         renderGalleryHandler();
         const latestPhoto = syncCurrentPhotoIndex(photo.id);
@@ -266,6 +297,7 @@ export async function openLightbox(index) {
     try {
         const details = await fetchPhotoDetails(photo.id);
         const merged = {
+            name: details.name || photo.name || '',
             likes: details.likes || 0,
             comments: details.comments || [],
             commentsCount: details.comments?.length || 0,
@@ -307,9 +339,10 @@ export function closeLightbox() {
     touchStartPoint = null;
 }
 
-export function initLightbox({ onRenderGallery, onOpenSingleDeleteModal }) {
+export function initLightbox({ onRenderGallery, onOpenSingleDeleteModal, onLoadPhotos }) {
     renderGalleryHandler = onRenderGallery;
     openSingleDeleteModalHandler = onOpenSingleDeleteModal;
+    loadPhotosHandler = typeof onLoadPhotos === 'function' ? onLoadPhotos : loadPhotosHandler;
 
     dom.filterBtns.forEach((btn) => {
         btn.addEventListener('click', () => {
