@@ -1,4 +1,4 @@
-export const GALLERY_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
+﻿export const GALLERY_IMAGE_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
 export const MAX_PARALLEL_IMAGE_LOADS = 4;
 export const IMAGE_RETRY_LIMIT = 1;
 
@@ -8,6 +8,7 @@ export function createDefaultEditState() {
 
 export const state = {
     photos: [],
+    stories: [],
     localUploadPreviews: [],
     visiblePhotos: [],
     currentPhotoIndex: null,
@@ -21,6 +22,8 @@ export const state = {
     sortMode: 'custom',
     contentFilter: 'all',
     viewMode: 'grid',
+    siteView: 'album',
+    activeStoryId: '',
     draggedPhotoId: null,
     dragMoved: false,
     reorderSaving: false,
@@ -32,6 +35,10 @@ export const state = {
 
 export function setPhotos(photos) {
     state.photos = photos;
+}
+
+export function setStories(stories) {
+    state.stories = Array.isArray(stories) ? stories : [];
 }
 
 export function setLocalUploadPreviews(previews) {
@@ -57,8 +64,29 @@ export function getCurrentPhoto() {
     return state.currentPhotoIndex === null ? null : state.visiblePhotos[state.currentPhotoIndex] || null;
 }
 
+export function getActiveStory() {
+    return state.stories.find((story) => story.id === state.activeStoryId) || null;
+}
+
+export function replaceStoryInStore(nextStory) {
+    if (!nextStory) return;
+    let found = false;
+    state.stories = state.stories.map((story) => {
+        if (story.id !== nextStory.id) return story;
+        found = true;
+        return nextStory;
+    });
+    if (!found) state.stories.unshift(nextStory);
+}
+
+export function removeStoryFromStore(storyId) {
+    state.stories = state.stories.filter((story) => story.id !== storyId);
+    if (state.activeStoryId === storyId) {
+        state.activeStoryId = state.stories[0]?.id || '';
+    }
+}
+
 export function resetEditorState() {
     state.currentFilter = 'none';
     state.currentEdit = createDefaultEditState();
 }
-

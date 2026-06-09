@@ -236,7 +236,9 @@ async function promptEditPhotoDetails() {
             tags: normalizeTags(result.tags),
             thumbSrc: result.thumbSrc || photo.thumbSrc || photo.src,
             groupName: result.groupName || photo.groupName || '',
-            groupCoverPhotoId: result.groupCoverPhotoId || photo.groupCoverPhotoId || ''
+            groupCoverPhotoId: result.groupCoverPhotoId || photo.groupCoverPhotoId || '',
+            eventDate: result.eventDate || '',
+            eventName: result.eventName || ''
         });
         renderGalleryHandler();
         const latestPhoto = syncCurrentPhotoIndex(photo.id);
@@ -307,6 +309,9 @@ export async function openLightbox(index) {
             tags: normalizeTags(details.tags),
             groupName: details.groupName || '',
             groupCoverPhotoId: details.groupCoverPhotoId || photo.groupCoverPhotoId || '',
+            eventDate: details.eventDate || '',
+            eventName: details.eventName || '',
+            duplicateKey: details.duplicateKey || photo.duplicateKey || '',
             thumbSrc: details.thumbSrc || photo.thumbSrc || photo.src
         };
         updatePhotoInStore(photo.id, merged);

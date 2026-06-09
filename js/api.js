@@ -10,9 +10,63 @@
     return data;
 }
 
+const ADMIN_PASSWORD_KEY = 'album_admin_password';
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function isWriteRequest(init = {}) {
+    const method = String(init.method || 'GET').toUpperCase();
+    return WRITE_METHODS.has(method);
+}
+
+function getCachedAdminPassword() {
+    try {
+        return sessionStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+    } catch {
+        return '';
+    }
+}
+
+function cacheAdminPassword(password) {
+    try {
+        if (password) sessionStorage.setItem(ADMIN_PASSWORD_KEY, password);
+        else sessionStorage.removeItem(ADMIN_PASSWORD_KEY);
+    } catch {
+        // Session storage may be unavailable in restricted browser contexts.
+    }
+}
+
+function requestAdminPassword() {
+    const cached = getCachedAdminPassword();
+    if (cached) return cached;
+
+    const password = window.prompt('请输入管理密码以继续此操作');
+    if (!password) {
+        throw new Error('需要管理密码');
+    }
+    cacheAdminPassword(password);
+    return password;
+}
+
+function appendAdminPassword(init = {}) {
+    if (!isWriteRequest(init)) return init;
+
+    const headers = new Headers(init.headers || {});
+    if (!headers.has('X-Admin-Password')) {
+        headers.set('X-Admin-Password', requestAdminPassword());
+    }
+
+    return {
+        ...init,
+        headers
+    };
+}
+
 async function requestJson(input, init) {
     try {
-        const response = await fetch(input, init);
+        const response = await fetch(input, appendAdminPassword(init || {}));
+        if (response.status === 403 && isWriteRequest(init || {})) {
+            cacheAdminPassword('');
+        }
         return parseResponse(response);
     } catch (error) {
         if (error instanceof Error && error.message) throw error;
@@ -22,6 +76,16 @@ async function requestJson(input, init) {
 
 export async function fetchPhotos() {
     return requestJson('/api/photos');
+}
+
+export async function fetchSystemHealth() {
+    return requestJson('/api/system/health');
+}
+
+export async function openUploadsFolderRequest() {
+    return requestJson('/api/system/open-uploads', {
+        method: 'POST'
+    });
 }
 
 export async function fetchPhotoDetails(photoId) {
@@ -63,7 +127,7 @@ export async function setGroupCover(groupName, photoId) {
 export async function deleteGroupRequest(groupName, password) {
     return requestJson(`/api/groups/${encodeURIComponent(groupName)}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
         body: JSON.stringify({ password })
     });
 }
@@ -96,10 +160,18 @@ export async function updateBatchPhotoCaption(photoIds, caption) {
     });
 }
 
+export async function updateBatchPhotoDetails(photoIds, payload) {
+    return requestJson('/api/photos/batch/details', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoIds, ...payload })
+    });
+}
+
 export async function deletePhotoRequest(photoId, password) {
     return requestJson(`/api/photos/${photoId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
         body: JSON.stringify({ password })
     });
 }
@@ -126,10 +198,64 @@ export async function deletePhotoComment(photoId, commentId) {
     });
 }
 
+export async function fetchStories() {
+    return requestJson('/api/stories');
+}
+
+export async function createStoryRequest(name) {
+    return requestJson('/api/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+}
+
+export async function updateStoryRequest(storyId, payload) {
+    return requestJson(`/api/stories/${encodeURIComponent(storyId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+}
+
+export async function deleteStoryRequest(storyId) {
+    return requestJson(`/api/stories/${encodeURIComponent(storyId)}`, {
+        method: 'DELETE'
+    });
+}
+
+export async function addStoryItemsRequest(storyId, payload) {
+    return requestJson(`/api/stories/${encodeURIComponent(storyId)}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+}
+
+export async function updateStoryItemsLayoutRequest(storyId, items) {
+    return requestJson(`/api/stories/${encodeURIComponent(storyId)}/items/layout`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+    });
+}
+
+export async function deleteStoryItemRequest(storyId, itemId) {
+    return requestJson(`/api/stories/${encodeURIComponent(storyId)}/items/${encodeURIComponent(itemId)}`, {
+        method: 'DELETE'
+    });
+}
+
 export function uploadPhotos(formData, onProgress) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/upload');
+        try {
+            xhr.setRequestHeader('X-Admin-Password', requestAdminPassword());
+        } catch (error) {
+            reject(error);
+            return;
+        }
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && typeof onProgress === 'function') {
                 onProgress(event);
@@ -141,12 +267,14 @@ export function uploadPhotos(formData, onProgress) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve(data);
                 } else {
+                    if (xhr.status === 403) cacheAdminPassword('');
                     reject(new Error(data?.error || '上传失败'));
                 }
             } catch {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve(null);
                 } else {
+                    if (xhr.status === 403) cacheAdminPassword('');
                     reject(new Error('上传失败'));
                 }
             }

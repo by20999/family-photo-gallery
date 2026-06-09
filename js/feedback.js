@@ -3,17 +3,40 @@
 let hideTimer = null;
 let currentAction = null;
 
-function renderStatus(message, tone = 'info', actionLabel = '') {
-    dom.galleryStatus.hidden = false;
-    dom.galleryStatus.className = `gallery-status ${tone}`.trim();
-    dom.galleryStatus.innerHTML = `
-        <div class="gallery-status-text">${message}</div>
-        ${actionLabel ? `<button class="gallery-status-action" type="button">${actionLabel}</button>` : ''}
-        <button class="gallery-status-close" type="button" aria-label="关闭提示">×</button>
-    `;
+function getStatusHost() {
+    return dom.globalStatus || dom.galleryStatus;
+}
 
-    const actionBtn = dom.galleryStatus.querySelector('.gallery-status-action');
-    const closeBtn = dom.galleryStatus.querySelector('.gallery-status-close');
+function renderStatus(message, tone = 'info', actionLabel = '') {
+    const host = getStatusHost();
+    if (!host) return;
+
+    host.hidden = false;
+    host.className = `gallery-status global-status ${tone}`.trim();
+    host.replaceChildren();
+
+    const textNode = document.createElement('div');
+    textNode.className = 'gallery-status-text';
+    textNode.textContent = message;
+    host.appendChild(textNode);
+
+    if (actionLabel) {
+        const actionButton = document.createElement('button');
+        actionButton.className = 'gallery-status-action';
+        actionButton.type = 'button';
+        actionButton.textContent = actionLabel;
+        host.appendChild(actionButton);
+    }
+
+    const closeButton = document.createElement('button');
+    closeButton.className = 'gallery-status-close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', '关闭提示');
+    closeButton.textContent = '×';
+    host.appendChild(closeButton);
+
+    const actionBtn = host.querySelector('.gallery-status-action');
+    const closeBtn = host.querySelector('.gallery-status-close');
 
     if (actionBtn) {
         actionBtn.addEventListener('click', () => {
@@ -29,14 +52,17 @@ function renderStatus(message, tone = 'info', actionLabel = '') {
 }
 
 export function clearStatusNotice() {
+    const host = getStatusHost();
+    if (!host) return;
+
     if (hideTimer) {
         clearTimeout(hideTimer);
         hideTimer = null;
     }
     currentAction = null;
-    dom.galleryStatus.hidden = true;
-    dom.galleryStatus.className = 'gallery-status';
-    dom.galleryStatus.innerHTML = '';
+    host.hidden = true;
+    host.className = 'gallery-status global-status';
+    host.innerHTML = '';
 }
 
 export function showStatusNotice(message, options = {}) {

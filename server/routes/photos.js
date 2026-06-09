@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const crypto = require('crypto');
 const multer = require('multer');
 const { DELETE_PASSWORD, uploadDir, thumbsDir } = require('../config');
 const {
@@ -23,6 +24,25 @@ const { ensureAndPersistThumbnails } = require('../services/thumbnailService');
 const { loadGroupData, saveGroupData, syncGroupDataWithPhotos } = require('../data/groupStore');
 
 const WINDOWS_RESERVED_FILENAME_PATTERN = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+function hashFile(filePath) {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(filePath);
+        stream.on('data', (chunk) => hash.update(chunk));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(hash.digest('hex')));
+    });
+}
+
+function normalizeEventDate(value) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+}
+
+function normalizeEventName(value) {
+    return typeof value === 'string' ? value.trim().slice(0, 40) : '';
+}
 
 function sanitizePhotoBaseName(rawName) {
     const parsed = path.parse(String(rawName || '').trim());
@@ -62,6 +82,29 @@ function listPhotoFilesSync() {
     return fs.readdirSync(uploadDir).filter((fileName) => isImageFilename(fileName));
 }
 
+function normalizePhotoIdParam(value) {
+    const photoId = String(value || '').trim();
+    if (!photoId || path.basename(photoId) !== photoId || photoId.includes('/') || photoId.includes('\\')) {
+        return '';
+    }
+    return isImageFilename(photoId) ? photoId : '';
+}
+
+function getExistingPhotoId(req, res, paramName = 'id') {
+    const photoId = normalizePhotoIdParam(req.params[paramName]);
+    if (!photoId) {
+        res.status(400).json({ error: '图片 ID 无效' });
+        return '';
+    }
+
+    if (!fs.existsSync(path.join(uploadDir, photoId))) {
+        res.status(404).json({ error: '图片不存在' });
+        return '';
+    }
+
+    return photoId;
+}
+
 function updateGroupCoverPhotoIds(groupData, oldPhotoId, nextPhotoId) {
     return Object.fromEntries(
         Object.entries(groupData).map(([groupName, entry]) => [
@@ -90,7 +133,10 @@ function buildPhotoResponse(photoId, photoData, groupData, uploadTime) {
         tags: meta.tags,
         order: meta.order,
         groupName: meta.groupName,
-        groupCoverPhotoId: meta.groupName ? (groupData[meta.groupName]?.coverPhotoId || '') : ''
+        groupCoverPhotoId: meta.groupName ? (groupData[meta.groupName]?.coverPhotoId || '') : '',
+        eventDate: meta.eventDate,
+        eventName: meta.eventName,
+        duplicateKey: meta.contentHash
     };
 }
 
@@ -153,7 +199,8 @@ function createPhotosRouter() {
     });
 
     router.get('/photos/:id', (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const filePath = path.join(uploadDir, photoId);
 
         if (!fs.existsSync(filePath)) {
@@ -181,7 +228,10 @@ function createPhotosRouter() {
             tags: details.tags,
             order: details.order,
             groupName: details.groupName,
-            groupCoverPhotoId: details.groupName ? (groupData[details.groupName]?.coverPhotoId || '') : ''
+            groupCoverPhotoId: details.groupName ? (groupData[details.groupName]?.coverPhotoId || '') : '',
+            eventDate: details.eventDate,
+            eventName: details.eventName,
+            duplicateKey: details.contentHash
         });
     });
 
@@ -215,8 +265,61 @@ function createPhotosRouter() {
         res.json({ success: true, updatedCount: photoIds.length, caption });
     });
 
+    router.patch('/photos/batch/details', async (req, res) => {
+        const rawIds = Array.isArray(req.body?.photoIds) ? req.body.photoIds : [];
+        const photoIds = [...new Set(rawIds.map((photoId) => String(photoId || '').trim()).filter(Boolean))];
+
+        if (photoIds.length === 0) {
+            return res.status(400).json({ error: '请选择要整理的照片' });
+        }
+
+        const existingFiles = new Set(await listPhotoFiles());
+        const hasUnknownId = photoIds.some((photoId) => !existingFiles.has(photoId));
+        if (hasUnknownId) {
+            return res.status(400).json({ error: '包含不存在的照片' });
+        }
+
+        const body = req.body || {};
+        const hasCaption = Object.prototype.hasOwnProperty.call(body, 'caption');
+        const hasTags = Object.prototype.hasOwnProperty.call(body, 'tags');
+        const hasEventDate = Object.prototype.hasOwnProperty.call(body, 'eventDate');
+        const hasEventName = Object.prototype.hasOwnProperty.call(body, 'eventName');
+
+        if (!hasCaption && !hasTags && !hasEventDate && !hasEventName) {
+            return res.status(400).json({ error: '没有可更新的整理字段' });
+        }
+
+        const caption = hasCaption ? String(body.caption || '').trim().slice(0, 80) : null;
+        const tags = hasTags ? normalizeTags(body.tags).slice(0, 12) : null;
+        const eventDate = hasEventDate ? normalizeEventDate(body.eventDate) : null;
+        const eventName = hasEventName ? normalizeEventName(body.eventName) : null;
+        const photoData = loadPhotoData();
+
+        photoIds.forEach((photoId) => {
+            const entry = normalizePhotoEntry(photoData[photoId]);
+            photoData[photoId] = {
+                ...entry,
+                ...(hasCaption ? { caption } : {}),
+                ...(hasTags ? { tags } : {}),
+                ...(hasEventDate ? { eventDate } : {}),
+                ...(hasEventName ? { eventName } : {})
+            };
+        });
+
+        savePhotoData(photoData);
+        res.json({
+            success: true,
+            updatedCount: photoIds.length,
+            ...(hasCaption ? { caption } : {}),
+            ...(hasTags ? { tags } : {}),
+            ...(hasEventDate ? { eventDate } : {}),
+            ...(hasEventName ? { eventName } : {})
+        });
+    });
+
     router.patch('/photos/:id/favorite', (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const filePath = path.join(uploadDir, photoId);
 
         if (!fs.existsSync(filePath)) {
@@ -236,7 +339,8 @@ function createPhotosRouter() {
     });
 
     router.patch('/photos/:id', async (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const filePath = path.join(uploadDir, photoId);
 
         if (!fs.existsSync(filePath)) {
@@ -247,8 +351,10 @@ function createPhotosRouter() {
         const hasCaption = Object.prototype.hasOwnProperty.call(body, 'caption');
         const hasTags = Object.prototype.hasOwnProperty.call(body, 'tags');
         const hasRename = Object.prototype.hasOwnProperty.call(body, 'renameTo');
+        const hasEventDate = Object.prototype.hasOwnProperty.call(body, 'eventDate');
+        const hasEventName = Object.prototype.hasOwnProperty.call(body, 'eventName');
 
-        if (!hasCaption && !hasTags && !hasRename) {
+        if (!hasCaption && !hasTags && !hasRename && !hasEventDate && !hasEventName) {
             return res.status(400).json({ error: '没有可更新的内容' });
         }
 
@@ -256,6 +362,8 @@ function createPhotosRouter() {
         const entry = normalizePhotoEntry(photoData[photoId]);
         const caption = hasCaption ? String(body.caption || '').trim().slice(0, 80) : entry.caption;
         const tags = hasTags ? normalizeTags(body.tags).slice(0, 12) : entry.tags;
+        const eventDate = hasEventDate ? normalizeEventDate(body.eventDate) : entry.eventDate;
+        const eventName = hasEventName ? normalizeEventName(body.eventName) : entry.eventName;
         const existingFiles = await listPhotoFiles();
         const nextPhotoId = hasRename
             ? buildUniquePhotoFilename(body.renameTo, path.extname(photoId), existingFiles, photoId)
@@ -295,6 +403,8 @@ function createPhotosRouter() {
                 ...entry,
                 caption,
                 tags,
+                eventDate,
+                eventName,
                 thumbnail: nextThumbnailFilename
             };
             nextGroupData = syncGroupDataWithPhotos(nextGroupData, nextPhotoData);
@@ -312,6 +422,8 @@ function createPhotosRouter() {
                 name: path.parse(nextPhotoId).name,
                 caption: resultEntry.caption,
                 tags: resultEntry.tags,
+                eventDate: resultEntry.eventDate,
+                eventName: resultEntry.eventName,
                 groupName: resultEntry.groupName,
                 groupCoverPhotoId: resultEntry.groupName ? (nextGroupData[resultEntry.groupName]?.coverPhotoId || '') : ''
             });
@@ -340,14 +452,50 @@ function createPhotosRouter() {
             const caption = typeof req.body.caption === 'string' ? req.body.caption.trim() : '';
             const tags = normalizeTags(req.body.tags);
             const groupName = typeof req.body.groupName === 'string' ? req.body.groupName.trim() : '';
+            const eventDate = normalizeEventDate(req.body.eventDate);
+            const eventName = normalizeEventName(req.body.eventName);
             const photoData = loadPhotoData();
+            const existingHashes = new Map(
+                Object.entries(photoData)
+                    .map(([photoId, entry]) => [normalizePhotoEntry(entry).contentHash, photoId])
+                    .filter(([contentHash]) => contentHash)
+            );
+            const acceptedFiles = [];
+            const duplicates = [];
+
+            for (const file of req.files) {
+                const filePath = path.join(uploadDir, file.filename);
+                const contentHash = await hashFile(filePath);
+                const duplicateOf = existingHashes.get(contentHash);
+                if (duplicateOf) {
+                    fs.unlinkSync(filePath);
+                    duplicates.push({
+                        originalName: file.originalname,
+                        duplicateOf
+                    });
+                    continue;
+                }
+                existingHashes.set(contentHash, file.filename);
+                acceptedFiles.push({
+                    ...file,
+                    contentHash
+                });
+            }
+
+            if (acceptedFiles.length === 0) {
+                return res.status(409).json({
+                    error: '这些照片已经上传过了，没有新增内容。',
+                    duplicates
+                });
+            }
+
             const existingOrders = Object.values(photoData)
                 .map((entry) => normalizePhotoEntry(entry).order)
                 .filter((order) => order !== null);
             const minOrder = existingOrders.length ? Math.min(...existingOrders) : 0;
-            const startOrder = minOrder - req.files.length;
+            const startOrder = minOrder - acceptedFiles.length;
 
-            req.files.forEach((file, index) => {
+            acceptedFiles.forEach((file, index) => {
                 const existing = normalizePhotoEntry(photoData[file.filename]);
                 const order = startOrder + index;
                 photoData[file.filename] = {
@@ -355,21 +503,25 @@ function createPhotosRouter() {
                     caption,
                     tags,
                     order,
-                    groupName
+                    groupName,
+                    eventDate,
+                    eventName,
+                    contentHash: file.contentHash,
+                    fileSize: file.size
                 };
             });
 
             let groupData = loadGroupData();
-            if (groupName && !groupData[groupName]?.coverPhotoId && req.files[0]) {
-                groupData[groupName] = { coverPhotoId: req.files[0].filename };
+            if (groupName && !groupData[groupName]?.coverPhotoId && acceptedFiles[0]) {
+                groupData[groupName] = { coverPhotoId: acceptedFiles[0].filename };
             }
             groupData = syncGroupDataWithPhotos(groupData, photoData);
 
-            await ensureAndPersistThumbnails(req.files.map((file) => file.filename), photoData);
+            await ensureAndPersistThumbnails(acceptedFiles.map((file) => file.filename), photoData);
             savePhotoData(photoData);
             saveGroupData(groupData);
 
-            const photos = req.files.map((file, index) => ({
+            const photos = acceptedFiles.map((file, index) => ({
                 id: file.filename,
                 src: `/uploads/${file.filename}`,
                 thumbSrc: getThumbnailSrc(file.filename, photoData[file.filename]) || `/uploads/${file.filename}`,
@@ -378,10 +530,13 @@ function createPhotosRouter() {
                 tags,
                 order: startOrder + index,
                 groupName,
-                groupCoverPhotoId: groupName ? (groupData[groupName]?.coverPhotoId || '') : ''
+                groupCoverPhotoId: groupName ? (groupData[groupName]?.coverPhotoId || '') : '',
+                eventDate,
+                eventName,
+                duplicateKey: file.contentHash
             }));
 
-            res.json({ success: true, photos });
+            res.json({ success: true, photos, duplicates });
         } catch (error) {
             console.error('上传失败:', error);
             res.status(500).json({ error: '上传失败' });
@@ -424,8 +579,11 @@ function createPhotosRouter() {
     });
 
     router.delete('/photos/:id', (req, res) => {
-        const photoId = req.params.id;
-        const { password } = req.body;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
+        const password = typeof req.body?.password === 'string'
+            ? req.body.password
+            : (req.get('x-admin-password') || '');
 
         if (!password || password !== DELETE_PASSWORD) {
             return res.status(403).json({ error: '密码错误' });
@@ -453,7 +611,8 @@ function createPhotosRouter() {
     });
 
     router.post('/photos/:id/like', (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const photoData = loadPhotoData();
         const entry = normalizePhotoEntry(photoData[photoId]);
         entry.likes += 1;
@@ -463,7 +622,8 @@ function createPhotosRouter() {
     });
 
     router.post('/photos/:id/react', (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const { emoji } = req.body;
         const allowed = ['❤️', '😂', '😮', '😢', '👍'];
 
@@ -480,7 +640,8 @@ function createPhotosRouter() {
     });
 
     router.post('/photos/:id/comment', (req, res) => {
-        const photoId = req.params.id;
+        const photoId = getExistingPhotoId(req, res);
+        if (!photoId) return;
         const { text, author } = req.body;
 
         if (!text || !text.trim()) {
@@ -503,7 +664,9 @@ function createPhotosRouter() {
     });
 
     router.delete('/photos/:photoId/comment/:commentId', (req, res) => {
-        const { photoId, commentId } = req.params;
+        const { commentId } = req.params;
+        const photoId = getExistingPhotoId(req, res, 'photoId');
+        if (!photoId) return;
         const photoData = loadPhotoData();
 
         if (!photoData[photoId]) {

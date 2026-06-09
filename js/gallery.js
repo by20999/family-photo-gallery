@@ -1,8 +1,9 @@
-import { dom } from './dom.js';
+﻿import { dom } from './dom.js';
 import { state, setPhotos, setVisiblePhotos, setLocalUploadPreviews, updatePhotoInStore, GALLERY_IMAGE_PLACEHOLDER, MAX_PARALLEL_IMAGE_LOADS, IMAGE_RETRY_LIMIT } from './state.js';
-import { fetchPhotos, reorderPhotos, createGroup, renameGroup, updateBatchPhotoCaption, updatePhotoFavorite } from './api.js';
+import { fetchPhotos, reorderPhotos, createGroup, renameGroup, updateBatchPhotoDetails, updatePhotoFavorite } from './api.js';
 import { escapeHtml, formatUploadMonth, formatUploadDate } from './utils.js';
 import { showStatusNotice, clearStatusNotice } from './feedback.js';
+import { promptAddPhotoToStory, promptAddGroupToStory } from './story.js';
 
 const DEFAULT_GROUP_NAME = '\u5168\u90e8\u56fe\u7247';
 const UNGROUPED_GROUP_NAME = '\u672a\u5206\u7ec4';
@@ -75,6 +76,14 @@ function getViewModeLabel(mode = state.viewMode) {
     return VIEW_MODE_LABELS[mode] || VIEW_MODE_LABELS.grid;
 }
 
+function getPhotoDateValue(photo) {
+    return photo.eventDate || photo.uploadTime;
+}
+
+function getPhotoDateLabel(photo) {
+    return photo.eventDate || formatUploadDate(photo.uploadTime) || '未记录日期';
+}
+
 function getTimelineMonthSortValue(dateValue) {
     const date = new Date(dateValue);
     if (Number.isNaN(date.getTime())) return -1;
@@ -119,12 +128,12 @@ function getStoryPhotoCount(photos) {
 function getTimelineGroupsFromPhotos(photos) {
     const groups = new Map();
     getTimelinePhotos(photos).forEach((photo) => {
-        const label = getTimelineMonthLabel(photo.uploadTime);
+        const label = getTimelineMonthLabel(getPhotoDateValue(photo));
         if (!groups.has(label)) {
             groups.set(label, {
                 label,
-                yearLabel: getTimelineYearLabel(photo.uploadTime),
-                sortValue: getTimelineMonthSortValue(photo.uploadTime),
+                yearLabel: getTimelineYearLabel(getPhotoDateValue(photo)),
+                sortValue: getTimelineMonthSortValue(getPhotoDateValue(photo)),
                 items: []
             });
         }
@@ -238,7 +247,15 @@ function renderUploadGroupOptions() {
 }
 
 function getSearchableText(photo) {
-    return [photo.name, photo.caption, (photo.tags || []).join(' '), getPhotoGroupName(photo), formatUploadMonth(photo.uploadTime)].join(' ').toLowerCase();
+    return [
+        photo.name,
+        photo.caption,
+        photo.eventName,
+        photo.eventDate,
+        (photo.tags || []).join(' '),
+        getPhotoGroupName(photo),
+        formatUploadMonth(getPhotoDateValue(photo))
+    ].join(' ').toLowerCase();
 }
 
 function getSortLabel(mode = state.sortMode) {
@@ -294,6 +311,7 @@ function buildSearchMatchHint(photo) {
     const matches = [];
     if (normalizeCompare(photo.name).includes(keyword)) matches.push('\u6587\u4ef6\u540d');
     if (normalizeCompare(photo.caption).includes(keyword)) matches.push('\u7b80\u4ecb');
+    if (normalizeCompare(photo.eventName).includes(keyword) || normalizeCompare(photo.eventDate).includes(keyword)) matches.push('事件');
     if ((photo.tags || []).some((tag) => normalizeCompare(tag).includes(keyword))) matches.push('\u6807\u7b7e');
     if (normalizeCompare(getPhotoGroupName(photo)).includes(keyword)) matches.push('\u5206\u7ec4');
     if (matches.length === 0) return '';
@@ -406,6 +424,25 @@ function renderGroupNav() {
         meta.appendChild(count);
         button.appendChild(cover);
         button.appendChild(meta);
+
+        if (summary.name !== DEFAULT_GROUP_NAME && summary.count > 0) {
+            const storyBtn = document.createElement('span');
+            storyBtn.className = 'group-nav-story-btn';
+            storyBtn.setAttribute('role', 'button');
+            storyBtn.setAttribute('tabindex', '0');
+            storyBtn.textContent = '加入故事';
+            storyBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                await promptAddGroupToStory(summary.name);
+            });
+            storyBtn.addEventListener('keydown', async (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.stopPropagation();
+                await promptAddGroupToStory(summary.name);
+            });
+            button.appendChild(storyBtn);
+        }
         button.addEventListener('click', () => applyGroupFilter(summary.name));
         dom.groupNav.appendChild(button);
     });
@@ -904,22 +941,43 @@ async function promptBatchGroupAssignment() {
     }
 }
 
-async function promptBatchCaptionUpdate() {
+async function promptBatchDetailsUpdate() {
     if (state.selectedIds.size === 0) {
-        showStatusNotice('\u8bf7\u5148\u9009\u62e9\u8981\u5199\u7b80\u4ecb\u7684\u7167\u7247', { tone: 'info', duration: 2200 });
+        showStatusNotice('请先选择要整理的照片', { tone: 'info', duration: 2200 });
         return;
     }
-    const raw = window.prompt(`\u7ed9\u9009\u4e2d\u7684 ${state.selectedIds.size} \u5f20\u7167\u7247\u8bbe\u7f6e\u7edf\u4e00\u7b80\u4ecb\uff0c\u7559\u7a7a\u53ef\u4ee5\u6e05\u9664\u3002`, '');
-    if (raw === null) return;
-    const caption = raw.trim().slice(0, 80);
+
+    const count = state.selectedIds.size;
+    const rawCaption = window.prompt(`给选中的 ${count} 张照片设置统一描述；留空会清除描述，取消则停止整理。`, '');
+    if (rawCaption === null) return;
+
+    const rawTags = window.prompt('设置统一标签，多个标签可用逗号、顿号或空格分开；留空会清除标签。', '');
+    if (rawTags === null) return;
+
+    const rawEventDate = window.prompt('设置事件日期，格式 YYYY-MM-DD；留空会清除事件日期。', '');
+    if (rawEventDate === null) return;
+
+    const rawEventName = window.prompt('设置事件名称，例如：春节、生日、旅行；留空会清除事件名称。', '');
+    if (rawEventName === null) return;
+
+    const caption = rawCaption.trim().slice(0, 80);
+    const tags = normalizeTags(rawTags).slice(0, 12);
+    const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(rawEventDate.trim()) ? rawEventDate.trim() : '';
+    const eventName = rawEventName.trim().slice(0, 40);
+
     try {
-        await updateBatchPhotoCaption([...state.selectedIds], caption);
+        await updateBatchPhotoDetails([...state.selectedIds], {
+            caption,
+            tags,
+            eventDate,
+            eventName
+        });
         exitBatchMode();
         await loadPhotos();
-        showStatusNotice('\u6279\u91cf\u7b80\u4ecb\u5df2\u66f4\u65b0', { tone: 'success' });
+        showStatusNotice('批量整理信息已更新', { tone: 'success' });
     } catch (error) {
-        console.error('\u6279\u91cf\u66f4\u65b0\u7b80\u4ecb\u5931\u8d25:', error);
-        showStatusNotice(error.message || '\u6279\u91cf\u66f4\u65b0\u7b80\u4ecb\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5', { tone: 'error' });
+        console.error('批量整理失败:', error);
+        showStatusNotice(error.message || '批量整理失败，请重试', { tone: 'error' });
     }
 }
 
@@ -1164,7 +1222,7 @@ export function renderGallery() {
             const hoverMeta = document.createElement('div');
             hoverMeta.className = 'card-hover-meta';
             hoverMeta.innerHTML = `
-                <span class="card-date-badge">${escapeHtml(formatUploadDate(photo.uploadTime) || '未记录日期')}</span>
+                <span class="card-date-badge">${escapeHtml(getPhotoDateLabel(photo))}</span>
                 <span class="card-file-badge">${escapeHtml(photo.name || '未命名照片')}</span>
             `;
 
@@ -1175,6 +1233,7 @@ export function renderGallery() {
             const tags = (photo.tags || []).slice(0, 3).map((tag) => buildFilterChip(`#${highlightText(tag)}`, 'data-filter-tag', tag, normalizeCompare(tag) === normalizeCompare(state.activeTagFilter))).join('');
             const groupName = getPhotoGroupName(photo);
             const groupBadge = groupName ? buildFilterChip(`分组 · ${highlightText(groupName)}`, 'data-filter-group', groupName, groupName === state.activeGroupName && !state.searchKeyword.trim() && !state.activeTagFilter) : '';
+            const eventBadge = photo.eventName ? `<span class="card-tag event-chip">${highlightText(photo.eventName)}</span>` : '';
             const coverBadge = groupName && photo.groupCoverPhotoId === photo.id ? '<span class="card-tag group-cover-chip">分组封面</span>' : '';
             const uploadBadge = photo.isLocalPreview ? '<span class="card-tag upload-chip">上传中</span>' : '';
             const favoriteBadge = photo.favorited ? '<span class="card-tag favorite-chip">★ 已收藏</span>' : '';
@@ -1191,7 +1250,7 @@ export function renderGallery() {
                 </div>
                 ${caption}
                 ${matchHint}
-                ${(uploadBadge || favoriteBadge || coverBadge || tags || groupBadge) ? `<div class="card-tags">${uploadBadge}${favoriteBadge}${coverBadge}${groupBadge}${tags}</div>` : ''}
+                ${(uploadBadge || favoriteBadge || coverBadge || eventBadge || tags || groupBadge) ? `<div class="card-tags">${uploadBadge}${favoriteBadge}${coverBadge}${eventBadge}${groupBadge}${tags}</div>` : ''}
             `;
             bindCardFilterChips(cardInfo);
             if (!photo.isLocalPreview) {
@@ -1209,6 +1268,17 @@ export function renderGallery() {
                     }
                 });
                 card.appendChild(favoriteBtn);
+
+                const storyBtn = document.createElement('button');
+                storyBtn.className = 'card-story-btn';
+                storyBtn.type = 'button';
+                storyBtn.setAttribute('aria-label', '加入图片故事');
+                storyBtn.textContent = '加入故事';
+                storyBtn.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    await promptAddPhotoToStory(photo.id);
+                });
+                card.appendChild(storyBtn);
             }
             card.appendChild(hoverMeta);
             card.appendChild(img);
@@ -1318,7 +1388,7 @@ export function initGallery({ onOpenLightbox, onOpenBatchDeleteModal, onOpenGrou
     });
 
     dom.batchGroupBtn.addEventListener('click', promptBatchGroupAssignment);
-    dom.batchCaptionBtn.addEventListener('click', promptBatchCaptionUpdate);
+    dom.batchCaptionBtn.addEventListener('click', promptBatchDetailsUpdate);
 
     dom.batchDeleteBtn.addEventListener('click', () => {
         if (state.selectedIds.size === 0) return;
@@ -1405,11 +1475,3 @@ export function initGallery({ onOpenLightbox, onOpenBatchDeleteModal, onOpenGrou
         await promptBatchGroupAssignment();
     });
 }
-
-
-
-
-
-
-
-

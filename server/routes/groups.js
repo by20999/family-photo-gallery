@@ -146,7 +146,9 @@ function createGroupsRouter() {
 
     router.delete('/:name', (req, res) => {
         const groupName = normalizeGroupName(req.params.name);
-        const password = typeof req.body?.password === 'string' ? req.body.password : '';
+        const password = typeof req.body?.password === 'string'
+            ? req.body.password
+            : (req.get('x-admin-password') || '');
 
         if (!groupName || groupName === RESERVED_GROUP_NAME) {
             return res.status(400).json({ error: '\u8be5\u5206\u7ec4\u4e0d\u652f\u6301\u5220\u9664' });

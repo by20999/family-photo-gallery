@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -59,9 +59,33 @@
             <div class="header-actions">
                 <span class="festival-badge" id="festivalBadge">节日推荐</span>
                 <button class="recommend-theme-btn" id="recommendThemeBtn" type="button">一键切换主题</button>
+                <button class="system-toggle-btn" id="systemToggleBtn" type="button" aria-expanded="false">系统状态</button>
             </div>
             <div class="header-stats" id="headerStats"></div>
+            <div class="site-view-switcher" aria-label="站点视图切换">
+                <button class="site-view-btn active" type="button" data-site-view="album">主相册</button>
+                <button class="site-view-btn" type="button" data-site-view="story">图片故事模式</button>
+            </div>
+
         </header>
+
+        <div class="gallery-status global-status" id="globalStatus" hidden></div>
+
+        <section class="system-panel" id="systemPanel" hidden>
+            <div class="system-panel-head">
+                <div>
+                    <h2>系统状态</h2>
+                    <p>快速检查本地相册的数据、缩略图和重复照片情况。</p>
+                </div>
+                <div class="system-panel-actions">
+                    <button type="button" id="systemRefreshBtn">重新检查</button>
+                    <button type="button" id="systemOpenUploadsBtn">打开 uploads</button>
+                </div>
+            </div>
+            <div class="system-status-body" id="systemStatusBody"></div>
+        </section>
+
+        <section class="album-workspace" id="albumWorkspace">
 
         <section class="memory-board" id="memoryBoard" hidden>
             <article class="memory-panel">
@@ -102,6 +126,15 @@
 
         <div class="upload-meta-panel">
             <input type="text" id="captionInput" placeholder="给这一组照片写一句描述，例如：外婆生日的小聚会" maxlength="80">
+            <select id="captionTemplateSelect" class="upload-template-select" aria-label="描述模板">
+                <option value="">描述模板</option>
+                <option value="这一天值得被记住。">这一天值得被记住。</option>
+                <option value="一次简单但很开心的日常。">一次简单但很开心的日常。</option>
+                <option value="和家人在一起的片段。">和家人在一起的片段。</option>
+                <option value="旅行路上的小瞬间。">旅行路上的小瞬间。</option>
+            </select>
+            <input type="date" id="eventDateInput" aria-label="事件日期">
+            <input type="text" id="eventNameInput" placeholder="事件，例如：春节、生日、旅行" maxlength="40">
             <input type="text" id="tagsInput" placeholder="标签用逗号分开，例如：旅行,live,春日穿搭" maxlength="60">
             <select id="uploadGroupSelect" class="upload-group-select" aria-label="上传时加入分组">
                 <option value="">不加入分组</option>
@@ -157,7 +190,7 @@
             <span class="batch-count" id="batchCount">&#24050;&#36873; 0 &#24352;</span>
             <button class="batch-select-all-btn" id="batchSelectAllBtn">&#20840;&#36873;&#24403;&#21069;&#32467;&#26524;</button>
             <button class="batch-action-btn" id="batchGroupBtn" type="button">&#21152;&#20837;/&#26032;&#24314;&#20998;&#32452;</button>
-            <button class="batch-action-btn" id="batchCaptionBtn" type="button">&#25209;&#37327;&#20889;&#31616;&#20171;</button>
+            <button class="batch-action-btn" id="batchCaptionBtn" type="button">批量整理</button>
             <button class="batch-delete-btn" id="batchDeleteBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
@@ -168,6 +201,70 @@
         </div>
 
         <div class="gallery" id="gallery"></div>
+        </section>
+
+        <section class="story-workspace" id="storyWorkspace" hidden>
+            <div class="story-shell">
+                <aside class="story-sidebar">
+                    <div class="story-sidebar-head">
+                        <span class="story-sidebar-kicker">附项目</span>
+                        <h2>图片故事模式</h2>
+                        <p>把主相册里的片段，慢慢接成一条像回忆录一样流动的时间线。</p>
+                        <button class="story-primary-btn" id="storyCreateBtn" type="button">创建新故事</button>
+                    </div>
+                    <div class="story-list" id="storyList"></div>
+                </aside>
+
+                <section class="story-stage">
+                    <div class="story-empty" id="storyEmpty">
+                        <div class="story-empty-card">
+                            <span class="story-empty-kicker">Memoir Mode</span>
+                            <h3>这里先留给你的第一本故事</h3>
+                            <p>故事模式默认是空白的。你可以先创建一个故事，然后从主相册把单张图片或整个分组送过来。</p>
+                            <button class="story-primary-btn" id="storyCreateEmptyBtn" type="button">创建第一本故事</button>
+                        </div>
+                    </div>
+
+                    <div class="story-detail" id="storyDetail" hidden>
+                        <div class="story-detail-head">
+                            <div>
+                                <div class="story-detail-kicker" id="storyDateMeta"></div>
+                                <h3 id="storyTitle"></h3>
+                                <p id="storySummary"></p>
+                            </div>
+                            <div class="story-detail-actions">
+                                <button class="story-secondary-btn" id="storyRenameBtn" type="button">重命名</button>
+                                <button class="story-secondary-btn danger" id="storyDeleteBtn" type="button">删除故事</button>
+                            </div>
+                        </div>
+
+                        <div class="story-timeline-panel">
+                            <div class="story-timeline-toolbar">
+                                <div class="story-timeline-meta" id="storyTimelineMeta"></div>
+                                <div class="story-timeline-controls">
+                                    <button class="story-secondary-btn" id="storyTimelinePrevBtn" type="button">向前翻</button>
+                                    <button class="story-secondary-btn" id="storyTimelineNextBtn" type="button">向后翻</button>
+                                </div>
+                            </div>
+                            <div class="story-flow-viewport" id="storyFlowViewport">
+                                <div class="story-flow-surface" id="storyFlowSurface"></div>
+                            </div>
+                        </div>
+
+                        <div class="story-editor-panel">
+                            <div class="story-editor-head">
+                                <div>
+                                    <strong>故事叙述</strong>
+                                    <p>把这条时间流线下方的文字写成一段回忆，就像给照片配一页柔软的旁白。</p>
+                                </div>
+                                <span class="story-editor-status" id="storyEditorStatus">故事文案会自动保存</span>
+                            </div>
+                            <textarea id="storyContentInput" class="story-content-input" placeholder="比如：那天的风很轻，所有人都在笑，照片里看不见的细节，正好写在这里。"></textarea>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
     </div>
 
     <div class="lightbox" id="lightbox">
@@ -273,6 +370,3 @@
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
-
-
-

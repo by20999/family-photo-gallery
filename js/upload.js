@@ -18,7 +18,7 @@ function setUploadSectionState(className, active) {
     dom.uploadSection.classList.toggle(className, active);
 }
 
-function buildLocalUploadPreviews(files, caption, tags, groupName) {
+function buildLocalUploadPreviews(files, caption, tags, groupName, eventDate, eventName) {
     const baseTime = Date.now();
     return files.map((file, index) => {
         const previewUrl = URL.createObjectURL(file);
@@ -35,6 +35,8 @@ function buildLocalUploadPreviews(files, caption, tags, groupName) {
             commentsCount: 0,
             reactions: {},
             groupName,
+            eventDate,
+            eventName,
             uploadTime: baseTime + index,
             isLocalPreview: true
         };
@@ -59,7 +61,9 @@ async function handleSelectedFiles(fileList, onLoadPhotos) {
     const rawTags = dom.tagsInput.value.trim();
     const tags = normalizeTags(rawTags);
     const groupName = dom.uploadGroupSelect.value.trim();
-    const previews = buildLocalUploadPreviews(files, caption, tags, groupName);
+    const eventDate = dom.eventDateInput?.value || '';
+    const eventName = dom.eventNameInput?.value.trim() || '';
+    const previews = buildLocalUploadPreviews(files, caption, tags, groupName, eventDate, eventName);
 
     showLocalUploadPreviews(previews, groupName || '\u5168\u90e8\u56fe\u7247');
     dom.uploadBtn.style.pointerEvents = 'none';
@@ -73,6 +77,8 @@ async function handleSelectedFiles(fileList, onLoadPhotos) {
         formData.append('caption', caption);
         formData.append('tags', rawTags);
         formData.append('groupName', groupName);
+        formData.append('eventDate', eventDate);
+        formData.append('eventName', eventName);
 
         for (let index = 0; index < files.length; index += 1) {
             dom.uploadProgressText.textContent = `\u538b\u7f29\u4e2d ${index + 1} / ${files.length}...`;
@@ -102,7 +108,10 @@ async function handleSelectedFiles(fileList, onLoadPhotos) {
         await onLoadPhotos();
         dom.captionInput.value = '';
         dom.tagsInput.value = '';
-        showStatusNotice(`\u5df2\u4e0a\u4f20 ${files.length} \u5f20\u7167\u7247\uff0c\u53ef\u4ee5\u7ee7\u7eed\u8865\u5145\u6545\u4e8b\u6216\u6807\u7b7e\u3002`, { tone: 'success' });
+        if (dom.captionTemplateSelect) dom.captionTemplateSelect.value = '';
+        const duplicateCount = Array.isArray(result?.duplicates) ? result.duplicates.length : 0;
+        const duplicateText = duplicateCount > 0 ? `，已跳过 ${duplicateCount} 张重复照片` : '';
+        showStatusNotice(`\u5df2\u4e0a\u4f20 ${result?.photos?.length || files.length} \u5f20\u7167\u7247${duplicateText}\uff0c\u53ef\u4ee5\u7ee7\u7eed\u8865\u5145\u6545\u4e8b\u6216\u6807\u7b7e\u3002`, { tone: 'success' });
         dom.gallery.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setUploadHint('\u4e0a\u4f20\u5b8c\u6210\uff0c\u53ef\u4ee5\u7ee7\u7eed\u62d6\u62fd\u6216\u7ee7\u7eed\u9009\u62e9\u7167\u7247\u3002', true);
         setTimeout(() => {
@@ -135,6 +144,12 @@ async function handleSelectedFiles(fileList, onLoadPhotos) {
 }
 
 export function initUpload({ onLoadPhotos }) {
+    dom.captionTemplateSelect?.addEventListener('change', () => {
+        const template = dom.captionTemplateSelect.value;
+        if (!template) return;
+        dom.captionInput.value = template;
+    });
+
     dom.fileInput.addEventListener('change', async (event) => {
         await handleSelectedFiles(event.target.files, onLoadPhotos);
     });

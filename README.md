@@ -1,154 +1,116 @@
-﻿# 家庭共享相册
+# 家庭共享相册
 
-一个轻量但功能完整的家庭共享相册网站，基于 `Node.js + Express + 原生 HTML/CSS/JS`。适合家庭成员一起上传照片、浏览回忆、留言互动，并通过标签、分组、收藏、搜索和主题把照片整理得更有温度。
+`family-photo-gallery` 是一个面向家庭、朋友或小团队的轻量相册网站。项目使用原生前端和 Express 后端实现照片上传、浏览、分组、评论、表情回应、收藏、故事流和缩略图生成。
 
-## 当前亮点
+## 快速开始
 
-- 多图上传，前端自动压缩
-- 支持拖拽到上传区上传
-- 上传时可填写描述、标签、分组
-- 4 列相册网格，懒加载
-- 灯箱查看、键盘切图、手机手势切图
-- 图片滤镜与基础编辑
-- 评论系统、表情回应、昵称系统
-- 深色 / 浅色模式与主题包
-- 标签点击即筛选
-- 单张照片编辑描述 / 标签
-- 收藏功能与“仅看收藏”筛选
-- 首页“最近新增 / 往年今日”模块
-- 全部图片页支持拖拽排序，刷新后顺序保留
-- 批量删除、批量写简介、批量加入分组
-
-## 技术栈
-
-- 前端：原生 `HTML / CSS / JavaScript`
-- 后端：`Node.js + Express`
-- 上传：`multer`
-- 数据存储：
-  - 原图：`uploads/`
-  - 缩略图：`uploads/thumbnails/`（本地）或 `thumbnails/`（Railway Volume）
-  - 元数据：`photo-data.json`
-
-## 主要文件
-
-- `index.html`：页面结构
-- `style.css`：所有样式与响应式
-- `js/main.js`：前端模块入口
-- `js/dom.js` / `js/state.js` / `js/api.js`：基础模块
-- `js/gallery.js` / `js/upload.js` / `js/lightbox.js` / `js/theme.js` / `js/comments.js` / `js/feedback.js`：业务模块
-- `server.js`：后端启动入口
-- `server/routes/` / `server/data/` / `server/services/`：后端路由、存储与缩略图逻辑
-- `uploads/`：原图目录
-- `uploads/thumbnails/` 或 `thumbnails/`：缩略图目录
-- `photo-data.json`：点赞、评论、标签、描述、收藏、排序、分组、缩略图文件名等数据
-- `CLAUDE.md`：项目约定与修改注意事项
-- `CODEX.md`：给 Codex 快速接手项目用的上下文文档
-
-## 已实现功能
-
-### 照片管理
-- 多图上传
-- 上传进度条
-- 上传前压缩（最大边 2560px，质量 0.92）
-- 本地上传预览
-- 拖拽上传
-- 上传时填写描述 / 标签 / 分组
-- 平铺模式拖拽排序
-- 批量删除
-- 批量写简介
-- 批量加入 / 新建分组
-- 单张删除密码保护
-
-### 浏览体验
-- 4 列网格展示
-- 图片 1:1 比例裁切
-- 懒加载
-- 灯箱查看
-- 左右切换
-- 键盘方向键切换
-- 手机端左右滑切图
-- 手机端下滑关闭
-- 照片故事区显示日期、描述、标签、分组信息
-- 首页最近新增
-- 首页往年今日
-
-### 图片互动
-- 表情回应：`❤️ 😂 😮 😢 👍`
-- 评论系统
-- 昵称系统（首次进入必填）
-- 收藏 / 取消收藏
-- 仅看收藏筛选
-
-### 主题与外观
-- 深色 / 浅色模式
-- 预设背景渐变
-- 自定义渐变背景
-- 家庭氛围标题区
-- 节日主题推荐
-- 主题包切换
-
-### 查找与整理
-- 搜索文件名、描述、标签、分组、月份
-- 标签点击即筛选
-- 分组导航
-- 单张照片编辑描述 / 标签
-- 只有在“全部图片 + 手动顺序 + 非搜索/非批量/非上传预览/非收藏筛选”时允许拖拽排序
-
-## API
+Windows 本地推荐直接双击：
 
 ```text
-GET    /api/photos
-GET    /api/photos/:id
-PATCH  /api/photos/:id
-PATCH  /api/photos/:id/favorite
-PATCH  /api/photos/batch/caption
-POST   /api/upload
-POST   /api/photos/reorder
-DELETE /api/photos/:id
-POST   /api/photos/:id/like
-POST   /api/photos/:id/react
-POST   /api/photos/:id/comment
-DELETE /api/photos/:photoId/comment/:commentId
+start-local.bat
 ```
 
-## 本地运行
+脚本会自动检查依赖、安装 `node_modules`、选择可用端口、打开浏览器并启动服务。默认访问地址通常是：
+
+```text
+http://localhost:3000
+```
+
+如需手动运行：
 
 ```bash
 npm install
 npm start
 ```
 
-默认访问：`http://localhost:3000`
+停止服务：回到启动窗口按 `Ctrl+C`。
 
-## 重要配置
+默认本地管理密码为：
 
-- 删除密码：`DELETE_PASSWORD`，默认值 `by-2099`
-- 端口：`PORT`，默认 `3000`
-- Railway 持久化目录：`RAILWAY_VOLUME_MOUNT_PATH`
-- 上传限制：单张 10MB，一次最多 10 张
+```text
+by-2099
+```
 
-## 拖拽排序规则
+上传、删除、编辑、创建故事等写入操作会要求输入管理密码。
 
-拖拽排序只在以下条件同时满足时启用：
-- 当前在“全部图片”
-- 排序方式为“手动顺序”
-- 当前不是搜索结果
-- 当前没有标签筛选
-- 当前不是批量模式
-- 当前没有本地上传预览
-- 当前内容筛选是“全部照片”而不是“仅看简介”或“仅看收藏”
+## 核心能力
 
-## 部署
+- 照片上传：支持多图上传、拖拽上传、本地预览和前端压缩。
+- 相册浏览：支持网格、时间线、灯箱、键盘切换、移动端手势和懒加载。
+- 照片整理：支持描述模板、事件日期、事件名称、标签、分组、收藏、搜索、排序和批量操作。
+- 数据健康：网页内可查看照片数、缩略图数、丢图检查和重复照片组。
+- 重复检测：上传时按图片内容 hash 跳过重复照片。
+- 家庭互动：支持昵称、评论、表情回应和照片故事说明。
+- 故事流：支持创建故事、加入照片或分组、拖拽布局、保存长文本内容。
+- 主题外观：支持明暗模式、渐变背景和主题包。
+- 本地持久化：图片保存在文件目录，元数据保存在 JSON 文件。
 
-详细步骤见 [部署教程.md](./部署教程.md)
+## 技术栈
 
-Railway 部署时建议：
-- 添加 Volume 挂载 `/data`
-- 设置 `RAILWAY_VOLUME_MOUNT_PATH=/data`
-- 设置 `DELETE_PASSWORD`
+| 层级 | 技术 |
+| --- | --- |
+| 前端 | HTML、CSS、原生 JavaScript ES Modules |
+| 后端 | Node.js、Express |
+| 上传 | multer |
+| 缩略图 | sharp |
+| 存储 | 文件系统、JSON |
 
-## 注意事项
+## 目录导览
 
-- `photo-data.json` 当前会保存：`caption`、`favorited`、`tags`、`order`、`groupName`、`thumbnail` 等信息
-- 如果你在新对话里直接让我继续开发，优先让我看 `CODEX.md`
-- 如果要修改项目约定和注意事项，优先更新 `CLAUDE.md`
+| 路径 | 作用 |
+| --- | --- |
+| `index.html` | 单页应用 HTML 结构。 |
+| `style.css` | 全局样式、响应式布局、主题和组件视觉。 |
+| `js/` | 前端业务模块。 |
+| `server.js` | Express 应用入口。 |
+| `server/` | 后端配置、路由、数据读写和服务。 |
+| `uploads/` | 原图和本地缩略图目录。 |
+| `photo-data.json` | 照片元数据。 |
+| `group-data.json` | 分组扩展数据。 |
+| `story-data.json` | 故事流数据。 |
+| `docs/` | 项目专题文档。 |
+| `memory/` | 项目日志和长期记忆区。 |
+| `AGENTS.md` | AI Agent 和自动化协作规范。 |
+
+## 重要命令
+
+```bash
+npm start
+npm run healthcheck
+npm run test:smoke
+npm run audit:data
+npm run backup:data
+```
+
+- `npm start`：启动相册服务。
+- `start-local.bat`：Windows 本地启动面板，可启动网站、检查数据、打开 `uploads/`、查看管理密码。
+- `npm run healthcheck`：检查已运行服务的 `/healthz`、首页和核心只读 API。
+- `npm run test:smoke`：临时启动服务并验证首页、API 和敏感文件不可被静态访问。
+- `npm run audit:data`：检查图片文件、缩略图、JSON 元数据和故事引用是否一致。
+- `npm run backup:data`：备份 `uploads/` 与核心 JSON 数据到本地 `backups/` 目录。
+
+新增测试前请先阅读 [测试策略](./docs/testing-strategy.md)。
+
+## 环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP 服务端口。 |
+| `DELETE_PASSWORD` | `by-2099` | 写入接口管理密码。生产环境必须覆盖，且 `NODE_ENV=production` 时不能使用默认值。 |
+| `RAILWAY_VOLUME_MOUNT_PATH` | 空 | Railway 等平台的持久化 Volume 根目录。 |
+
+所有 `/api` 下的写入请求（`POST`、`PUT`、`PATCH`、`DELETE`）都需要管理密码。前端会在首次写入操作时提示输入，并在当前浏览器会话中临时缓存。
+
+## 推荐阅读顺序
+
+1. [项目总览](./docs/project-overview.md)
+2. [架构说明](./docs/architecture.md)
+3. [模块职责](./docs/module-map.md)
+4. [开发约束](./docs/development-constraints.md)
+5. [API 文档](./docs/api.md)
+6. [数据模型](./docs/data-model.md)
+7. [项目计划](./docs/project-plan.md)
+
+## 当前状态
+
+项目处于个人/小团队可用阶段：核心功能较完整，已具备基础写入鉴权、单进程 API 队列、健康检查、冒烟测试、数据体检和本地备份脚本。旧相册数据已按确认清空，当前可作为干净的新相册基线继续开发；上线前仍建议清理剩余历史乱码文本，并补充更系统的测试与运维能力。详见 [项目改进](./docs/improvements.md) 与 [后续方向](./docs/roadmap.md)。

@@ -1,4 +1,4 @@
-import { dom } from './dom.js';
+﻿import { dom } from './dom.js';
 import { initTheme } from './theme.js';
 import { initNickname } from './profile.js';
 import { initGallery, loadPhotos, renderGallery, exitBatchMode } from './gallery.js';
@@ -6,6 +6,8 @@ import { initComments } from './comments.js';
 import { initDeleteFlow, openBatchDeleteModal, openSingleDeleteModal, openGroupDeleteModal } from './delete.js';
 import { initLightbox, openLightbox, closeLightbox } from './lightbox.js';
 import { initUpload } from './upload.js';
+import { initStory, loadStories } from './story.js';
+import { initSystemPanel } from './system.js';
 import { state } from './state.js';
 
 function getDayPhaseLabel() {
@@ -84,8 +86,10 @@ async function bootstrap() {
         onOpenBatchDeleteModal: openBatchDeleteModal,
         onOpenGroupDeleteModal: openGroupDeleteModal
     });
+    initStory();
+    initSystemPanel();
     initUpload({ onLoadPhotos: loadPhotos });
-    await loadPhotos();
+    await Promise.all([loadPhotos(), loadStories()]);
     startSubtitleRotation();
 }
 

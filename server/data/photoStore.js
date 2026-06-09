@@ -31,7 +31,11 @@ function normalizePhotoEntry(entry = {}) {
         tags: normalizeTags(entry.tags),
         order: normalizeOrder(entry.order),
         groupName: typeof entry.groupName === 'string' ? entry.groupName.trim() : '',
-        thumbnail: typeof entry.thumbnail === 'string' ? entry.thumbnail.trim() : ''
+        thumbnail: typeof entry.thumbnail === 'string' ? entry.thumbnail.trim() : '',
+        eventDate: typeof entry.eventDate === 'string' ? entry.eventDate.trim().slice(0, 10) : '',
+        eventName: typeof entry.eventName === 'string' ? entry.eventName.trim().slice(0, 40) : '',
+        contentHash: typeof entry.contentHash === 'string' ? entry.contentHash.trim() : '',
+        fileSize: Number.isFinite(Number(entry.fileSize)) ? Number(entry.fileSize) : 0
     };
 }
 
@@ -86,7 +90,11 @@ function getPhotoMeta(photoId, photoData) {
         tags: data.tags,
         order: data.order,
         groupName: data.groupName,
-        thumbnail: data.thumbnail
+        thumbnail: data.thumbnail,
+        eventDate: data.eventDate,
+        eventName: data.eventName,
+        contentHash: data.contentHash,
+        fileSize: data.fileSize
     };
 }
 
@@ -101,7 +109,11 @@ function getPhotoDetails(photoId, photoData) {
         tags: data.tags,
         order: data.order,
         groupName: data.groupName,
-        thumbnail: data.thumbnail
+        thumbnail: data.thumbnail,
+        eventDate: data.eventDate,
+        eventName: data.eventName,
+        contentHash: data.contentHash,
+        fileSize: data.fileSize
     };
 }
 
